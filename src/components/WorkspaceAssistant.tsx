@@ -2736,11 +2736,11 @@ function DetailPanel(props: any) {
   const { activeTab, item, aiInsights, processing, onProcessAI, isReplying, setIsReplying, replyContent, setReplyContent, sendingReply, onSendReply, onMailAction, onCalendarDelete, onCalendarEdit, editingEvent, onCalendarUpdate, onCancelEventEdit, showDraftInput, draftPrompt, setDraftPrompt, isDrafting, onDraft, onAutoGenerate, onShowDraft, onHideDraft, isReplyMode, getHeader, lang, t, isDemo, replyAttachments, setReplyAttachments, attachmentAnalysis, onAnalyzeAttachment, onOpenLightbox, handleMailAction: handleMailActionProp, handleSendFn, setIsComposingNew: setIsComposingNewProp, setComposeTo: setComposeToProp, setComposeSubject: setComposeSubjectProp, setComposeBody: setComposeBodyProp } = props;
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
+    <div className="p-4 max-w-3xl mx-auto space-y-4">
       {/* Header */}
       <div className="flex justify-between items-start gap-2">
         <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-normal text-gm-text-primary">
+          <h1 className="text-lg font-normal text-gm-text-primary">
             {activeTab === "mail"
               ? getHeader(item, "Subject")
               : item?.summary}
@@ -2809,7 +2809,7 @@ function DetailPanel(props: any) {
         <Button
           variant="outline"
           onClick={() => onProcessAI(item)}
-          className="w-full justify-center gap-2 rounded-2xl border-gm-blue-border-faint text-gm-blue hover:bg-gm-blue-bg py-5"
+          className="w-full justify-center gap-2 rounded-2xl border-gm-blue-border-faint text-gm-blue hover:bg-gm-blue-bg py-3"
         >
           <Sparkles className="h-4 w-4" />
           {t.aiAnalyze}
@@ -3129,24 +3129,22 @@ function MailContent(props: any) {
 
       {/* Reply */}
       {isReplying ? (
-        <div className="mt-6 space-y-3 border border-gm-border rounded-xl p-4 bg-gm-bg-dim">
+        <div className="sticky bottom-0 mt-4 space-y-2 border border-gm-border rounded-xl p-3 bg-gm-bg shadow-lg z-10">
           <div className="relative">
             <textarea
-              className="w-full min-h-[180px] max-h-[400px] p-3 border border-gm-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-gm-blue text-sm resize-y"
+              className="w-full min-h-[100px] max-h-[280px] p-3 border border-gm-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-gm-blue text-sm resize-y bg-gm-bg"
               placeholder={t?.reply ? `${t.reply}...` : "Write your reply..."}
               value={replyContent}
               onChange={(e) => {
                 setReplyContent(e.target.value);
-                // Auto-resize
                 e.target.style.height = 'auto';
-                e.target.style.height = Math.min(400, Math.max(180, e.target.scrollHeight)) + 'px';
+                e.target.style.height = Math.min(280, Math.max(100, e.target.scrollHeight)) + 'px';
               }}
               ref={(el) => {
-                // Auto-resize on initial content (e.g. after AI draft)
                 if (el && replyContent) {
                   requestAnimationFrame(() => {
                     el.style.height = 'auto';
-                    el.style.height = Math.min(400, Math.max(180, el.scrollHeight)) + 'px';
+                    el.style.height = Math.min(280, Math.max(100, el.scrollHeight)) + 'px';
                   });
                 }
               }}
