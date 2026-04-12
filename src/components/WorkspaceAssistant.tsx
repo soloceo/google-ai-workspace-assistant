@@ -794,14 +794,18 @@ export default function WorkspaceAssistant({
       }
 
       let context = "";
-      if (draftTarget === "reply" && selectedItem) {
+      const isReply = draftTarget === "reply" && !!selectedItem;
+      if (isReply && selectedItem) {
         const subject = getHeader(selectedItem, "Subject");
-        context = `Email to reply to:\nSubject: ${subject}\nBody: ${selectedItem?.snippet}`;
+        const from = getHeader(selectedItem, "From");
+        // Include more of the original email body for better language detection
+        const body = selectedItem?.snippet || '';
+        context = `Email to reply to:\nFrom: ${from}\nSubject: ${subject}\nBody: ${body}`;
       }
 
       const apiKey = gemini.getGeminiApiKey();
       if (!apiKey) { toast.error('Please configure Gemini API key in settings'); setIsDrafting(false); return; }
-      const result = await gemini.generateDraft(apiKey, { prompt: draftPrompt, context, lang, model: settings.aiModel });
+      const result = await gemini.generateDraft(apiKey, { prompt: draftPrompt, context, lang, model: settings.aiModel, isReply });
 
       const draft = result.draft + (settings.signature ? `\n\n${settings.signature}` : "");
       if (draftTarget === "compose") setComposeBody(draft);

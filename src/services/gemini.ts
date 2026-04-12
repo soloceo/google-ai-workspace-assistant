@@ -87,14 +87,18 @@ Respond ONLY with a JSON object: {"summary": "...", "action": "..."}
  */
 export async function generateDraft(
   apiKey: string,
-  params: { prompt: string; context?: string; lang: string; model?: string }
+  params: { prompt: string; context?: string; lang: string; model?: string; isReply?: boolean }
 ): Promise<{ draft: string }> {
   if (!apiKey) throw new Error('Gemini API key not configured');
   if (!params.prompt?.trim()) throw new Error('Prompt required');
 
   const client = getClient(apiKey);
 
-  const fullPrompt = `You are a helpful assistant. Write a draft based on this instruction: ${params.prompt}${params.context ? `\n\nContext:\n${params.context}` : ''}\n\nRespond in ${params.lang === 'zh' ? 'Chinese' : 'English'}.\nRespond ONLY with the body content, no explanations.`;
+  const langInstruction = params.isReply && params.context
+    ? 'IMPORTANT: Reply in the SAME language as the original email below. Detect the language of the email and match it exactly. The user instruction may be in a different language — that is just their command to you, NOT the desired output language.'
+    : `Respond in ${params.lang === 'zh' ? 'Chinese' : 'English'}.`;
+
+  const fullPrompt = `You are a helpful assistant. Write a draft based on this instruction: ${params.prompt}${params.context ? `\n\nContext:\n${params.context}` : ''}\n\n${langInstruction}\nRespond ONLY with the body content, no explanations.`;
 
   const result = await client.models.generateContent({
     model: params.model || 'gemini-2.5-flash',
