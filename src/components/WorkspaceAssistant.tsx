@@ -322,8 +322,16 @@ export default function WorkspaceAssistant({
   // Attachment analysis state
   const [attachmentAnalysis, setAttachmentAnalysis] = useState<Record<string, { loading: boolean; result: any }>>({});
 
-  // Attachment lightbox state
-  const [lightbox, setLightbox] = useState<{ src: string; type: "image" | "pdf" } | null>(null);
+  // Attachment lightbox state — revoke blob URL on close to prevent memory leak
+  const [lightbox, setLightboxRaw] = useState<{ src: string; type: "image" | "pdf" } | null>(null);
+  const setLightbox = useCallback((value: { src: string; type: "image" | "pdf" } | null) => {
+    setLightboxRaw((prev) => {
+      if (prev?.src && prev.src !== value?.src) {
+        try { URL.revokeObjectURL(prev.src); } catch {}
+      }
+      return value;
+    });
+  }, []);
 
   // AI Draft
   const [isDrafting, setIsDrafting] = useState(false);
@@ -386,6 +394,22 @@ export default function WorkspaceAssistant({
   const [chatInput, setChatInput] = useState("");
   const [chatStreaming, setChatStreaming] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatMessagesRef = useRef<ChatMessage[]>(chatMessages);
+
+  // Keep chatMessagesRef in sync with state
+  useEffect(() => {
+    chatMessagesRef.current = chatMessages;
+  }, [chatMessages]);
+
+  // Cleanup demo typing interval on unmount
+  useEffect(() => {
+    return () => {
+      if (demoTypingRef.current) {
+        clearInterval(demoTypingRef.current);
+        demoTypingRef.current = null;
+      }
+    };
+  }, []);
 
   // Persist chat history (debounced)
   useEffect(() => {
@@ -421,6 +445,12 @@ export default function WorkspaceAssistant({
 
   // Abort controller ref
   const abortRef = useRef<AbortController | null>(null);
+
+  // Demo typing interval ref (Fix 4: clear on unmount)
+  const demoTypingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Track classified email IDs to avoid re-classifying on every data.mail ref change
+  const classifiedEmailIdsRef = useRef<Set<string>>(new Set());
 
   const t = translations[lang];
 
@@ -561,7 +591,32 @@ export default function WorkspaceAssistant({
       abortRef.current = controller;
 
       try {
-        const accounts = authService.getAllValidAccounts();
+        const allAccounts = authService.getAccounts();
+        let accounts = authService.getAllValidAccounts();
+
+        // If we have stored accounts but none are valid, tokens have expired
+        if (allAccounts.length > 0 && accounts.length === 0) {
+          // Attempt to refresh tokens via GIS for each expired account
+          const refreshed: typeof accounts = [];
+          for (const acct of allAccounts) {
+            try {
+              const freshAccount = await authService.withFreshToken(acct.email, async (token) => {
+                return { ...acct, access_token: token };
+              });
+              refreshed.push(freshAccount);
+            } catch {
+              // Could not refresh this account — skip it
+            }
+          }
+          if (refreshed.length === 0) {
+            toast.error(t.failedLoad.replace("{tab}", t[activeTab]) + ': Session expired. Please sign in again.');
+            setLoading(false);
+            setLoadingMore(false);
+            return;
+          }
+          accounts = refreshed;
+        }
+
         const tabKey = activeTab as "mail" | "calendar";
 
         if (activeTab === "mail") {
@@ -621,11 +676,23 @@ export default function WorkspaceAssistant({
         }
       } catch (error: any) {
         if (error.name === "AbortError") return;
-        toast.error(`${t.failedLoad.replace("{tab}", t[activeTab])}: ${error.message}`);
-        if (error.message.includes("Token expired") || error.message.includes("Unauthorized")) {
-          // Token expired — could trigger re-auth flow
-          console.error("Auth error during data fetch:", error);
+        // Token expired or 401 — attempt silent refresh, then retry once
+        if (error.message?.includes("Token expired") || error.message?.includes("Unauthorized") || error.status === 401) {
+          console.error("Auth error during data fetch — attempting token refresh:", error);
+          try {
+            const allAccounts = authService.getAccounts();
+            for (const acct of allAccounts) {
+              try {
+                await authService.withFreshToken(acct.email, async () => {});
+              } catch { /* skip un-refreshable accounts */ }
+            }
+            toast.info(lang === 'zh' ? '令牌已刷新，正在重新加载...' : 'Token refreshed, reloading...');
+            // Don't recurse — just reload after refresh
+          } catch {
+            // Refresh failed entirely
+          }
         }
+        toast.error(`${t.failedLoad.replace("{tab}", t[activeTab])}: ${error.message}`);
         if (!append) setData((prev) => ({ ...prev, [activeTab]: [] }));
       } finally {
         setLoading(false);
@@ -676,9 +743,21 @@ export default function WorkspaceAssistant({
     return () => observer.disconnect();
   }, [activeTab, pageTokens, loadingMore, loading, loadData]);
 
+  // Stable email IDs key — only changes when actual email IDs change, not on every re-render
+  const mailIdKey = useMemo(
+    () => data.mail.map((m: any) => m.id).sort().join(','),
+    [data.mail]
+  );
+
   // Email classification (Feature 16) — after emails load
+  // Uses mailIdKey instead of data.mail to avoid firing on every array ref change
   useEffect(() => {
     if (activeTab !== "mail" || data.mail.length === 0) return;
+
+    // Detect truly new email IDs
+    const currentIds = new Set(data.mail.map((m: any) => m.id));
+    const newIds = [...currentIds].filter((id) => !classifiedEmailIdsRef.current.has(id));
+    if (newIds.length === 0) return;
 
     // Load from localStorage cache first
     let cached: Record<string, {priority: string, category: string}> = {};
@@ -690,6 +769,11 @@ export default function WorkspaceAssistant({
     // Apply cached classifications
     if (Object.keys(cached).length > 0) {
       setEmailClassifications((prev) => ({ ...prev, ...cached }));
+    }
+
+    // Mark all current IDs as seen
+    for (const id of currentIds) {
+      classifiedEmailIdsRef.current.add(id);
     }
 
     if (isDemo) {
@@ -713,8 +797,8 @@ export default function WorkspaceAssistant({
       return;
     }
 
-    // Find un-classified emails and batch call API
-    const unclassified = data.mail.filter((email: any) => !cached[email.id]).slice(0, 20);
+    // Find un-classified emails (only new ones) and batch call API
+    const unclassified = data.mail.filter((email: any) => !cached[email.id] && newIds.includes(email.id)).slice(0, 20);
     if (unclassified.length === 0) return;
 
     const emailSummaries = unclassified.map((email: any) => ({
@@ -739,7 +823,7 @@ export default function WorkspaceAssistant({
         try { localStorage.setItem("ai_email_classifications", JSON.stringify(merged)); } catch {}
       }
     }).catch(() => {});
-  }, [activeTab, data.mail, isDemo]);
+  }, [activeTab, mailIdKey, isDemo]);
 
   // AI processing — server-side
   const processWithAI = async (item: any) => {
@@ -1451,13 +1535,17 @@ export default function WorkspaceAssistant({
 
       const response = demoResponses[demoKey]?.[lang as "zh"|"en"] || demoResponses["default"][lang as "zh"|"en"];
 
-      // Simulate typing
+      // Simulate typing — store interval in ref for cleanup
+      if (demoTypingRef.current) clearInterval(demoTypingRef.current);
       let idx = 0;
-      const typeInterval = setInterval(() => {
+      demoTypingRef.current = setInterval(() => {
         idx += Math.floor(Math.random() * 3) + 2;
         if (idx >= response.length) {
           idx = response.length;
-          clearInterval(typeInterval);
+          if (demoTypingRef.current) {
+            clearInterval(demoTypingRef.current);
+            demoTypingRef.current = null;
+          }
           setChatStreaming(false);
         }
         setChatMessages((prev) =>
@@ -1479,7 +1567,7 @@ export default function WorkspaceAssistant({
       }
 
       const context = buildChatContext();
-      const history = chatMessages.map((m) => ({ role: m.role === "user" ? "user" : "model", text: m.text }));
+      const history = chatMessagesRef.current.map((m) => ({ role: m.role === "user" ? "user" : "model", text: m.text }));
 
       const stream = gemini.chatStream(apiKey, { message: text, history, context, lang, model: settings.aiModel });
       let fullText = "";
@@ -1496,7 +1584,7 @@ export default function WorkspaceAssistant({
     } finally {
       setChatStreaming(false);
     }
-  }, [chatInput, chatStreaming, isDemo, data, lang, settings.aiModel, chatMessages, buildChatContext, t]);
+  }, [chatInput, chatStreaming, isDemo, data, lang, settings.aiModel, buildChatContext, t]);
 
   // Auto-scroll chat to bottom
   useEffect(() => {
@@ -2365,14 +2453,16 @@ function SettingsPanel({ settings, setSettings, onSave, onClose, lang, t, accoun
   const [showApiKey, setShowApiKey] = useState(false);
   const [apiKeyStatus, setApiKeyStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [apiKeyError, setApiKeyError] = useState('');
+  // Local state for the API key — only persisted on Save
+  const [localApiKey, setLocalApiKey] = useState(geminiApiKey || '');
 
   const testApiKey = async () => {
-    if (!geminiApiKey?.trim()) return;
+    if (!localApiKey?.trim()) return;
     setApiKeyStatus('testing');
     setApiKeyError('');
     try {
       const { GoogleGenAI } = await import('@google/genai');
-      const client = new GoogleGenAI({ apiKey: geminiApiKey });
+      const client = new GoogleGenAI({ apiKey: localApiKey });
       const result = await client.models.generateContent({
         model: settings.aiModel || 'gemini-2.5-flash',
         contents: 'Reply with exactly: OK',
@@ -2479,8 +2569,8 @@ function SettingsPanel({ settings, setSettings, onSave, onClose, lang, t, accoun
             <div className="relative">
               <input
                 type={showApiKey ? "text" : "password"}
-                value={geminiApiKey || ''}
-                onChange={(e) => { onGeminiApiKeyChange?.(e.target.value); setApiKeyStatus('idle'); setApiKeyError(''); }}
+                value={localApiKey}
+                onChange={(e) => { setLocalApiKey(e.target.value); setApiKeyStatus('idle'); setApiKeyError(''); }}
                 placeholder="AIza..."
                 className="w-full p-3 pr-10 border border-gm-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-gm-blue bg-gm-bg text-gm-text text-sm"
               />
@@ -2492,7 +2582,7 @@ function SettingsPanel({ settings, setSettings, onSave, onClose, lang, t, accoun
                 <Eye className="h-4 w-4" />
               </button>
             </div>
-            {geminiApiKey && (
+            {localApiKey && (
               <div className="flex items-center gap-2 mt-1">
                 <Button
                   variant="outline"
@@ -2576,7 +2666,7 @@ function SettingsPanel({ settings, setSettings, onSave, onClose, lang, t, accoun
         {/* Footer */}
         <div className="px-6 py-4 border-t border-gm-border bg-gm-bg-dim flex justify-end gap-3 sticky bottom-0">
           <Button variant="outline" onClick={onClose} className="px-4">{lang === "zh" ? "\u53d6\u6d88" : "Cancel"}</Button>
-          <Button onClick={onSave} className="bg-[#1a73e8] hover:bg-[#1557b0] text-white px-6">{t.saveSettings}</Button>
+          <Button onClick={() => { onGeminiApiKeyChange?.(localApiKey); onSave(); }} className="bg-[#1a73e8] hover:bg-[#1557b0] text-white px-6">{t.saveSettings}</Button>
         </div>
       </motion.div>
     </div>

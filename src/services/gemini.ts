@@ -39,6 +39,31 @@ export function setGeminiApiKey(key: string): void {
   }
 }
 
+// ── JSON Extraction Helper ──────────────────────────────────
+
+/**
+ * Extract a JSON object from a string by finding balanced braces.
+ * Handles nested objects correctly, unlike a simple non-greedy regex.
+ */
+function extractJSON(text: string): object | null {
+  const start = text.indexOf('{');
+  if (start === -1) return null;
+
+  let depth = 0;
+  for (let i = start; i < text.length; i++) {
+    if (text[i] === '{') depth++;
+    else if (text[i] === '}') depth--;
+    if (depth === 0) {
+      try {
+        return JSON.parse(text.slice(start, i + 1));
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
 // ── AI Functions ────────────────────────────────────────────
 
 /**
@@ -70,13 +95,9 @@ Respond ONLY with a JSON object: {"summary": "...", "action": "..."}
   });
 
   const text = result.text || '';
-  const jsonMatch = text.match(/\{[\s\S]*?\}/);
-  if (jsonMatch) {
-    try {
-      return JSON.parse(jsonMatch[0]);
-    } catch {
-      return { summary: text, action: '' };
-    }
+  const parsed = extractJSON(text);
+  if (parsed) {
+    return parsed as { summary: string; action: string };
   }
   return { summary: text, action: '' };
 }
