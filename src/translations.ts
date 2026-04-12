@@ -127,7 +127,22 @@ export const translations = {
     work: "Work",
     personal: "Personal",
     finance: "Finance",
-    newsletter: "Newsletter"
+    newsletter: "Newsletter",
+    somethingWentWrong: "Something went wrong",
+    reload: "Reload",
+    to: "To",
+    cc: "CC",
+    bcc: "BCC",
+    subject: "Subject",
+    title: "Title",
+    body: "Body",
+    description: "Description",
+    noApiKey: "Please configure Gemini API key in settings",
+    noValidToken: "No valid token available",
+    downloadFailed: "Download failed",
+    geminiApiKey: "Gemini API Key",
+    geminiApiKeyDesc: "Get your key from aistudio.google.com",
+    writeReply: "Write your reply..."
   },
   zh: {
     appName: "Google AI 办公助手",
@@ -255,6 +270,21 @@ export const translations = {
     work: "工作",
     personal: "个人",
     finance: "财务",
-    newsletter: "通讯"
+    newsletter: "通讯",
+    somethingWentWrong: "出错了",
+    reload: "重新加载",
+    to: "收件人",
+    cc: "抄送",
+    bcc: "密送",
+    subject: "主题",
+    title: "标题",
+    body: "正文",
+    description: "描述",
+    noApiKey: "请先在设置中配置 Gemini API Key",
+    noValidToken: "没有可用的有效令牌",
+    downloadFailed: "下载失败",
+    geminiApiKey: "Gemini API Key",
+    geminiApiKeyDesc: "从 aistudio.google.com 获取密钥",
+    writeReply: "撰写您的回复..."
   }
 };

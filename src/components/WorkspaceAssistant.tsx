@@ -42,7 +42,6 @@ import {
   Download,
   ExternalLink,
   ArrowLeft,
-  ChevronDown,
   Eye,
   ZoomIn,
   Star,
@@ -257,10 +256,12 @@ class ErrorBoundary extends Component<
   render() {
     // @ts-ignore
     if (this.state.hasError) {
+      const uiLang = navigator.language.startsWith("zh") ? "zh" : "en";
+      const tt = translations[uiLang];
       return (
         <div className="h-screen flex items-center justify-center bg-gm-bg">
           <div className="text-center space-y-4">
-            <p className="text-xl text-gm-text-primary">Something went wrong</p>
+            <p className="text-xl text-gm-text-primary">{tt.somethingWentWrong}</p>
             <button
               onClick={() => {
                 // @ts-ignore
@@ -269,7 +270,7 @@ class ErrorBoundary extends Component<
               }}
               className="px-4 py-2 bg-[#1a73e8] text-white rounded-lg"
             >
-              Reload
+              {tt.reload}
             </button>
           </div>
         </div>
@@ -560,12 +561,12 @@ export default function WorkspaceAssistant({
     setSelectedIds(new Set());
     setBatchMode(false);
     return () => abortRef.current?.abort();
-  }, [activeTab, isDemo]);
+  }, [activeTab, isDemo, loadData]);
 
   // Reload when label changes (Feature 9)
   useEffect(() => {
     if (activeTab === "mail") loadData();
-  }, [activeLabel]);
+  }, [activeLabel, activeTab, loadData]);
 
   // Helper: check if any account still has more pages (Feature 12)
   const hasMorePages = useCallback((tab: "mail" | "calendar") => {
@@ -632,6 +633,7 @@ export default function WorkspaceAssistant({
             labelIds,
             pageTokens: passTokens || undefined,
             accountFilter: accountFilter && accountFilter !== "all" ? accountFilter : undefined,
+            signal: controller.signal,
           });
 
           if (controller.signal.aborted) return;
@@ -654,6 +656,7 @@ export default function WorkspaceAssistant({
           const result = await calendarService.fetchAllAccountEvents(accounts, {
             q: searchQuery.trim() || undefined,
             accountFilter: accountFilter && accountFilter !== "all" ? accountFilter : undefined,
+            signal: controller.signal,
           });
 
           if (controller.signal.aborted) return;
@@ -705,7 +708,7 @@ export default function WorkspaceAssistant({
   // Reload data when account filter changes
   useEffect(() => {
     if (activeTab !== "ai") loadData();
-  }, [accountFilter]);
+  }, [accountFilter, activeTab, loadData]);
 
   // Server-side search with debounce (Feature 11 enhancement)
   useEffect(() => {
@@ -719,7 +722,7 @@ export default function WorkspaceAssistant({
       setIsSearching(false);
     }, 500);
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery, loadData]);
 
   // IntersectionObserver for infinite scroll (Feature 12)
   useEffect(() => {
@@ -848,7 +851,7 @@ export default function WorkspaceAssistant({
     setProcessing(true);
     try {
       const apiKey = gemini.getGeminiApiKey();
-      if (!apiKey) { toast.error((t as any).noApiKey || 'Please configure Gemini API key in settings'); setProcessing(false); return; }
+      if (!apiKey) { toast.error(t.noApiKey); setProcessing(false); return; }
       const result = await gemini.processItem(apiKey, { item, type: activeTab, lang, model: settings.aiModel });
       setAiInsights(result);
     } catch (error: any) {
@@ -889,7 +892,7 @@ export default function WorkspaceAssistant({
       }
 
       const apiKey = gemini.getGeminiApiKey();
-      if (!apiKey) { toast.error(lang === 'zh' ? '\u8bf7\u5148\u5728\u8bbe\u7f6e\u4e2d\u914d\u7f6e Gemini API Key' : 'Please configure Gemini API key in settings'); setIsDrafting(false); return; }
+      if (!apiKey) { toast.error(t.noApiKey); setIsDrafting(false); return; }
 
       // Determine current draft for refine mode
       const currentDraft = !autoGenerate && draftTarget === "reply" ? replyContent : (!autoGenerate && draftTarget === "compose" ? composeBody : undefined);
@@ -1000,7 +1003,7 @@ export default function WorkspaceAssistant({
       if (activeTab === "calendar") {
         if (!composeSubject.trim() || !composeStart || !composeEnd) return;
         const token = sendFromAccount ? authService.getValidToken(sendFromAccount) : authService.getFirstValidToken();
-        if (!token) { toast.error('No valid token available'); setSendingReply(false); return; }
+        if (!token) { toast.error(t.noValidToken); setSendingReply(false); return; }
         await calendarService.createEvent(token, {
           summary: composeSubject,
           description: composeBody,
@@ -1013,7 +1016,7 @@ export default function WorkspaceAssistant({
           ? await Promise.all(composeAttachments.map(fileToBase64))
           : undefined;
         const token = sendFromAccount ? authService.getValidToken(sendFromAccount) : authService.getFirstValidToken();
-        if (!token) { toast.error('No valid token available'); setSendingReply(false); return; }
+        if (!token) { toast.error(t.noValidToken); setSendingReply(false); return; }
         await gmail.sendMessage(token, {
           to: composeTo,
           cc: composeCc || undefined,
@@ -1065,7 +1068,7 @@ export default function WorkspaceAssistant({
 
       const selectedAcctEmail = selectedItem?.accountEmail || sendFromAccount;
       const token = selectedAcctEmail ? authService.getValidToken(selectedAcctEmail) : authService.getFirstValidToken();
-      if (!token) { toast.error('No valid token available'); setSendingReply(false); return; }
+      if (!token) { toast.error(t.noValidToken); setSendingReply(false); return; }
       await gmail.sendMessage(token, {
         to,
         subject,
@@ -1146,7 +1149,7 @@ export default function WorkspaceAssistant({
       const token = acctEmail ? authService.getValidToken(acctEmail) : authService.getFirstValidToken();
       const apiKey = gemini.getGeminiApiKey();
       if (!token || !apiKey) {
-        toast.error(!token ? 'No valid token available' : 'Please configure Gemini API key in settings');
+        toast.error(!token ? t.noValidToken : t.noApiKey);
         setAttachmentAnalysis(prev => ({ ...prev, [key]: { loading: false, result: null } }));
         return;
       }
@@ -1192,7 +1195,7 @@ export default function WorkspaceAssistant({
     const email = data.mail.find(m => m.id === messageId);
     const acctEmail = (email as any)?.accountEmail;
     const token = acctEmail ? authService.getValidToken(acctEmail) : authService.getFirstValidToken();
-    if (!token) { toast.error('No valid token available'); return; }
+    if (!token) { toast.error(t.noValidToken); return; }
 
     try {
       if (action === "trash") {
@@ -1258,7 +1261,7 @@ export default function WorkspaceAssistant({
     try {
       // Group messages by account for proper token usage
       const token = authService.getFirstValidToken();
-      if (!token) { toast.error('No valid token available'); return; }
+      if (!token) { toast.error(t.noValidToken); return; }
 
       if (action === "trash") {
         // Trash each message individually (Gmail API doesn't have batch trash)
@@ -1306,7 +1309,7 @@ export default function WorkspaceAssistant({
         const event = data.calendar.find((e: any) => e.id === eventId);
         const acctEmail = event?.accountEmail;
         const token = acctEmail ? authService.getValidToken(acctEmail) : authService.getFirstValidToken();
-        if (!token) { toast.error('No valid token available'); return; }
+        if (!token) { toast.error(t.noValidToken); return; }
         await calendarService.deleteEvent(token, eventId);
         toast.success(t.actionSuccess);
         setData((prev) => ({
@@ -1324,7 +1327,7 @@ export default function WorkspaceAssistant({
     try {
       const acctEmail = (event as any).accountEmail;
       const token = acctEmail ? authService.getValidToken(acctEmail) : authService.getFirstValidToken();
-      if (!token) { toast.error('No valid token available'); return; }
+      if (!token) { toast.error(t.noValidToken); return; }
       const result = await calendarService.updateEvent(token, event.id, {
         summary: event.summary,
         description: event.description,
@@ -1560,7 +1563,7 @@ export default function WorkspaceAssistant({
       const apiKey = gemini.getGeminiApiKey();
       if (!apiKey) {
         setChatMessages((prev) =>
-          prev.map((m) => m.id === assistantId ? { ...m, text: `⚠️ ${(t as any).noApiKey || 'Please configure Gemini API key in settings'}` } : m)
+          prev.map((m) => m.id === assistantId ? { ...m, text: `⚠️ ${t.noApiKey}` } : m)
         );
         setChatStreaming(false);
         return;
@@ -2559,10 +2562,10 @@ function SettingsPanel({ settings, setSettings, onSave, onClose, lang, t, accoun
 
           {/* Gemini API Key */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gm-text-primary">{t.geminiApiKey || "Gemini API Key"}</label>
+            <label className="text-sm font-medium text-gm-text-primary">{t.geminiApiKey}</label>
             <p className="text-xs text-gm-text-secondary">
               <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-gm-blue hover:underline inline-flex items-center gap-1">
-                {t.geminiApiKeyDesc || "Get your key from aistudio.google.com"}
+                {t.geminiApiKeyDesc}
                 <ExternalLink className="h-3 w-3" />
               </a>
             </p>
@@ -2665,7 +2668,7 @@ function SettingsPanel({ settings, setSettings, onSave, onClose, lang, t, accoun
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-gm-border bg-gm-bg-dim flex justify-end gap-3 sticky bottom-0">
-          <Button variant="outline" onClick={onClose} className="px-4">{lang === "zh" ? "\u53d6\u6d88" : "Cancel"}</Button>
+          <Button variant="outline" onClick={onClose} className="px-4">{t.cancel}</Button>
           <Button onClick={() => { onGeminiApiKeyChange?.(localApiKey); onSave(); }} className="bg-[#1a73e8] hover:bg-[#1557b0] text-white px-6">{t.saveSettings}</Button>
         </div>
       </motion.div>
@@ -2727,7 +2730,7 @@ function ComposePanel(props: any) {
           <>
             <input
               type="email"
-              placeholder="To"
+              placeholder={t.to}
               className="w-full p-3 border-b border-gm-border focus:outline-none focus:border-gm-blue text-gm-text bg-transparent text-sm"
               value={composeTo}
               onChange={(e) => setComposeTo(e.target.value)}
@@ -2740,14 +2743,14 @@ function ComposePanel(props: any) {
               <>
                 <input
                   type="text"
-                  placeholder="CC"
+                  placeholder={t.cc}
                   className="w-full p-3 border-b border-gm-border focus:outline-none focus:border-gm-blue text-gm-text bg-transparent text-sm"
                   value={composeCc}
                   onChange={(e) => setComposeCc(e.target.value)}
                 />
                 <input
                   type="text"
-                  placeholder="BCC"
+                  placeholder={t.bcc}
                   className="w-full p-3 border-b border-gm-border focus:outline-none focus:border-gm-blue text-gm-text bg-transparent text-sm"
                   value={composeBcc}
                   onChange={(e) => setComposeBcc(e.target.value)}
@@ -2770,7 +2773,7 @@ function ComposePanel(props: any) {
         )}
         <input
           type="text"
-          placeholder={activeTab === "mail" ? "Subject" : "Title"}
+          placeholder={activeTab === "mail" ? t.subject : t.title}
           className="w-full p-3 border-b border-gm-border focus:outline-none focus:border-gm-blue text-gm-text bg-transparent text-sm"
           value={composeSubject}
           onChange={(e) => setComposeSubject(e.target.value)}
@@ -2778,7 +2781,7 @@ function ComposePanel(props: any) {
         <div className="relative">
           <textarea
             className="w-full h-52 p-3 border border-gm-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-gm-blue resize-none text-sm"
-            placeholder={activeTab === "calendar" ? "Description" : "Body"}
+            placeholder={activeTab === "calendar" ? t.description : t.body}
             value={composeBody}
             onChange={(e) => setComposeBody(e.target.value)}
           />
@@ -3064,7 +3067,7 @@ function MailContent(props: any) {
                   try {
                     const acctEmail = item.accountEmail;
                     const token = acctEmail ? authService.getValidToken(acctEmail) : authService.getFirstValidToken();
-                    if (!token) { toast.error('No valid token available'); return; }
+                    if (!token) { toast.error(t.noValidToken); return; }
                     const blob = await gmail.downloadAttachment(token, item.id, att.attachmentId!, att.mimeType);
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
@@ -3075,7 +3078,7 @@ function MailContent(props: any) {
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
                   } catch (e: any) {
-                    toast.error(`Download failed: ${e.message}`);
+                    toast.error(`${t.downloadFailed}: ${e.message}`);
                   }
                 };
 
@@ -3087,7 +3090,7 @@ function MailContent(props: any) {
                   try {
                     const acctEmail = item.accountEmail;
                     const token = acctEmail ? authService.getValidToken(acctEmail) : authService.getFirstValidToken();
-                    if (!token) { toast.error('No valid token available'); return; }
+                    if (!token) { toast.error(t.noValidToken); return; }
                     const attData = await gmail.getAttachment(token, item.id, att.attachmentId!);
                     const blob = base64ToBlob(attData.data, att.mimeType);
                     const url = URL.createObjectURL(blob);
@@ -3223,7 +3226,7 @@ function MailContent(props: any) {
           <div className="relative">
             <textarea
               className="w-full min-h-[100px] max-h-[280px] p-3 border border-gm-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-gm-blue text-sm resize-y bg-gm-bg"
-              placeholder={t?.reply ? `${t.reply}...` : "Write your reply..."}
+              placeholder={t.writeReply}
               value={replyContent}
               onChange={(e) => {
                 setReplyContent(e.target.value);
@@ -3307,7 +3310,7 @@ function CalendarEditor({ event, onSave, onCancel, lang, t, isDemo }: { event: C
   return (
     <div className="space-y-3 border border-gm-border rounded-xl p-4 bg-gm-bg-dim">
       <div className="space-y-1">
-        <label className="text-[10px] font-bold uppercase tracking-wider text-gm-text-secondary">Title</label>
+        <label className="text-[10px] font-bold uppercase tracking-wider text-gm-text-secondary">{t.title}</label>
         <input
           className="w-full p-2 border border-gm-border-strong rounded-lg text-sm font-medium bg-gm-bg text-gm-text"
           value={summary}
@@ -3335,7 +3338,7 @@ function CalendarEditor({ event, onSave, onCancel, lang, t, isDemo }: { event: C
         </div>
       </div>
       <div className="space-y-1">
-        <label className="text-[10px] font-bold uppercase tracking-wider text-gm-text-secondary">Description</label>
+        <label className="text-[10px] font-bold uppercase tracking-wider text-gm-text-secondary">{t.description}</label>
         <textarea
           className="w-full h-28 p-2 border border-gm-border-strong rounded-lg text-sm resize-none bg-gm-bg text-gm-text"
           value={description}

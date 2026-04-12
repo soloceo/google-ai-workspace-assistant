@@ -1,10 +1,10 @@
-// @ts-nocheck
-import React, {StrictMode, Component} from 'react';
+import {StrictMode, Component} from 'react';
+import type { ReactNode } from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
-interface EBProps { children: React.ReactNode }
+interface EBProps { children: ReactNode }
 interface EBState { hasError: boolean; error: Error | null }
 
 class ErrorBoundary extends Component<EBProps, EBState> {

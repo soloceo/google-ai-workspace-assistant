@@ -18,6 +18,7 @@ export async function listMessages(
     labelIds?: string[];
     maxResults?: number;
     pageToken?: string;
+    signal?: AbortSignal;
   }
 ): Promise<{ messages: Array<{ id: string; threadId: string }>; nextPageToken?: string }> {
   const searchParams = new URLSearchParams();
@@ -35,7 +36,7 @@ export async function listMessages(
     messages?: Array<{ id: string; threadId: string }>;
     nextPageToken?: string;
     resultSizeEstimate?: number;
-  }>(url, token);
+  }>(url, token, params.signal ? { signal: params.signal } : {});
 
   return {
     messages: data.messages || [],
@@ -48,9 +49,10 @@ export async function listMessages(
  */
 export async function getMessage(
   token: string,
-  messageId: string
+  messageId: string,
+  signal?: AbortSignal
 ): Promise<any> {
-  return googleFetch(`${GMAIL_API}/messages/${messageId}?format=full`, token);
+  return googleFetch(`${GMAIL_API}/messages/${messageId}?format=full`, token, signal ? { signal } : {});
 }
 
 /**
@@ -278,6 +280,7 @@ export async function fetchAllAccountEmails(
     labelIds?: string[];
     pageTokens?: Record<string, string | null>;
     accountFilter?: string;
+    signal?: AbortSignal;
   }
 ): Promise<{
   items: any[];
@@ -316,6 +319,7 @@ export async function fetchAllAccountEmails(
           labelIds,
           maxResults,
           pageToken: accountPageToken || undefined,
+          signal: params.signal,
         });
 
         nextPageTokens[account.email] = listResult.nextPageToken || null;
@@ -324,7 +328,7 @@ export async function fetchAllAccountEmails(
         const detailed = await Promise.all(
           listResult.messages.map(async (msg) => {
             try {
-              const details = await getMessage(account.access_token, msg.id);
+              const details = await getMessage(account.access_token, msg.id, params.signal);
               return {
                 ...details,
                 accountEmail: account.email,

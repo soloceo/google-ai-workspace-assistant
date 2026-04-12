@@ -18,6 +18,7 @@ export async function listEvents(
     maxResults?: number;
     pageToken?: string;
     q?: string;
+    signal?: AbortSignal;
   }
 ): Promise<{ items: any[]; nextPageToken?: string }> {
   const searchParams = new URLSearchParams();
@@ -32,7 +33,7 @@ export async function listEvents(
   const data = await googleFetch<{
     items?: any[];
     nextPageToken?: string;
-  }>(url, token);
+  }>(url, token, params?.signal ? { signal: params.signal } : {});
 
   return {
     items: data.items || [],
@@ -128,6 +129,7 @@ export async function fetchAllAccountEvents(
     q?: string;
     pageToken?: string;
     accountFilter?: string;
+    signal?: AbortSignal;
   }
 ): Promise<{ items: any[]; nextPageToken: string | null }> {
   const targets = params?.accountFilter
@@ -145,6 +147,7 @@ export async function fetchAllAccountEvents(
           maxResults,
           pageToken: params?.pageToken || undefined,
           q: params?.q || undefined,
+          signal: params?.signal,
         });
 
         const events = result.items.map((ev: any) => ({
