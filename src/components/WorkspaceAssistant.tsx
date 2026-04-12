@@ -775,20 +775,22 @@ export default function WorkspaceAssistant({
   };
 
   // AI Draft — server-side (demo mode simulates)
-  const handleDraftWithAI = async () => {
-    if (!draftPrompt.trim()) return;
+  const handleDraftWithAI = async (autoGenerate?: boolean) => {
+    // For reply auto-generate, no prompt needed; for compose or refine, need prompt
+    if (!autoGenerate && !draftPrompt.trim()) return;
     setIsDrafting(true);
     try {
       if (isDemo) {
-        // Simulate AI draft in demo mode
         await new Promise((r) => setTimeout(r, 1200));
         const demoDraft = lang === "zh"
-          ? `您好，\n\n关于"${draftPrompt}"，以下是我的回复：\n\n感谢您的来信。我已仔细阅读了您的需求，以下是我的建议...\n\n此致\n敬礼`
-          : `Hello,\n\nRegarding "${draftPrompt}", here is my response:\n\nThank you for your message. I have carefully reviewed your request, and here are my suggestions...\n\nBest regards`;
+          ? `\u60a8\u597d\uff0c\n\n\u611f\u8c22\u60a8\u7684\u6765\u4fe1\u3002\u6211\u5df2\u4ed4\u7ec6\u9605\u8bfb\u4e86\u60a8\u7684\u9700\u6c42\uff0c\u4ee5\u4e0b\u662f\u6211\u7684\u5efa\u8bae...\n\n\u6b64\u81f4\n\u656c\u793c`
+          : `Hello,\n\nThank you for your message. I have carefully reviewed your request, and here are my suggestions...\n\nBest regards`;
         const draft = demoDraft + (settings.signature ? `\n\n${settings.signature}` : "");
         if (draftTarget === "compose") setComposeBody(draft);
         else if (draftTarget === "reply") setReplyContent(draft);
-        setShowDraftInput(false);
+        // For reply: show refinement input after auto-generate
+        if (autoGenerate) setShowDraftInput(true);
+        else { setShowDraftInput(false); }
         setDraftPrompt("");
         return;
       }
@@ -798,20 +800,31 @@ export default function WorkspaceAssistant({
       if (isReply && selectedItem) {
         const subject = getHeader(selectedItem, "Subject");
         const from = getHeader(selectedItem, "From");
-        // Include more of the original email body for better language detection
         const body = selectedItem?.snippet || '';
         context = `Email to reply to:\nFrom: ${from}\nSubject: ${subject}\nBody: ${body}`;
       }
 
       const apiKey = gemini.getGeminiApiKey();
-      if (!apiKey) { toast.error('Please configure Gemini API key in settings'); setIsDrafting(false); return; }
-      const result = await gemini.generateDraft(apiKey, { prompt: draftPrompt, context, lang, model: settings.aiModel, isReply });
+      if (!apiKey) { toast.error(lang === 'zh' ? '\u8bf7\u5148\u5728\u8bbe\u7f6e\u4e2d\u914d\u7f6e Gemini API Key' : 'Please configure Gemini API key in settings'); setIsDrafting(false); return; }
+
+      // Determine current draft for refine mode
+      const currentDraft = !autoGenerate && draftTarget === "reply" ? replyContent : (!autoGenerate && draftTarget === "compose" ? composeBody : undefined);
+
+      const result = await gemini.generateDraft(apiKey, {
+        prompt: draftPrompt,
+        context,
+        lang,
+        model: settings.aiModel,
+        isReply,
+        currentDraft: currentDraft || undefined,
+      });
 
       const draft = result.draft + (settings.signature ? `\n\n${settings.signature}` : "");
       if (draftTarget === "compose") setComposeBody(draft);
       else if (draftTarget === "reply") setReplyContent(draft);
 
-      setShowDraftInput(false);
+      // After auto-generate: show refinement input; after refine: keep input open
+      if (autoGenerate) setShowDraftInput(true);
       setDraftPrompt("");
     } catch (error: any) {
       toast.error(`${t.aiDraftFailed}: ${error.message}`);
@@ -2099,8 +2112,10 @@ export default function WorkspaceAssistant({
                 setDraftPrompt={setDraftPrompt}
                 isDrafting={isDrafting}
                 onDraft={() => handleDraftWithAI()}
+                onAutoGenerate={() => { setDraftTarget("reply"); handleDraftWithAI(true); }}
                 onShowDraft={() => { setDraftTarget("reply"); setShowDraftInput(true); }}
-                onHideDraft={() => setShowDraftInput(false)}
+                onHideDraft={() => { setShowDraftInput(false); setDraftPrompt(""); }}
+                isReplyMode={true}
                 getHeader={getHeader}
                 lang={lang}
                 t={t}
@@ -2718,7 +2733,7 @@ function ComposePanel(props: any) {
 }
 
 function DetailPanel(props: any) {
-  const { activeTab, item, aiInsights, processing, onProcessAI, isReplying, setIsReplying, replyContent, setReplyContent, sendingReply, onSendReply, onMailAction, onCalendarDelete, onCalendarEdit, editingEvent, onCalendarUpdate, onCancelEventEdit, showDraftInput, draftPrompt, setDraftPrompt, isDrafting, onDraft, onShowDraft, onHideDraft, getHeader, lang, t, isDemo, replyAttachments, setReplyAttachments, attachmentAnalysis, onAnalyzeAttachment, onOpenLightbox, handleMailAction: handleMailActionProp, handleSendFn, setIsComposingNew: setIsComposingNewProp, setComposeTo: setComposeToProp, setComposeSubject: setComposeSubjectProp, setComposeBody: setComposeBodyProp } = props;
+  const { activeTab, item, aiInsights, processing, onProcessAI, isReplying, setIsReplying, replyContent, setReplyContent, sendingReply, onSendReply, onMailAction, onCalendarDelete, onCalendarEdit, editingEvent, onCalendarUpdate, onCancelEventEdit, showDraftInput, draftPrompt, setDraftPrompt, isDrafting, onDraft, onAutoGenerate, onShowDraft, onHideDraft, isReplyMode, getHeader, lang, t, isDemo, replyAttachments, setReplyAttachments, attachmentAnalysis, onAnalyzeAttachment, onOpenLightbox, handleMailAction: handleMailActionProp, handleSendFn, setIsComposingNew: setIsComposingNewProp, setComposeTo: setComposeToProp, setComposeSubject: setComposeSubjectProp, setComposeBody: setComposeBodyProp } = props;
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
@@ -2817,8 +2832,10 @@ function DetailPanel(props: any) {
             setDraftPrompt={setDraftPrompt}
             isDrafting={isDrafting}
             onDraft={onDraft}
+            onAutoGenerate={onAutoGenerate}
             onShowDraft={onShowDraft}
             onHideDraft={onHideDraft}
+            isReplyMode={isReplyMode}
             getHeader={getHeader}
             lang={lang}
             t={t}
@@ -2857,7 +2874,7 @@ function DetailPanel(props: any) {
 }
 
 function MailContent(props: any) {
-  const { item, isReplying, setIsReplying, replyContent, setReplyContent, sendingReply, onSendReply, showDraftInput, draftPrompt, setDraftPrompt, isDrafting, onDraft, onShowDraft, onHideDraft, getHeader, lang, t, replyAttachments, setReplyAttachments, attachmentAnalysis, onAnalyzeAttachment, onOpenLightbox } = props;
+  const { item, isReplying, setIsReplying, replyContent, setReplyContent, sendingReply, onSendReply, showDraftInput, draftPrompt, setDraftPrompt, isDrafting, onDraft, onAutoGenerate, onShowDraft, onHideDraft, isReplyMode, getHeader, lang, t, replyAttachments, setReplyAttachments, attachmentAnalysis, onAnalyzeAttachment, onOpenLightbox } = props;
 
   const { isDemo: demoMode } = props;
   const body = decodeEmailBody(item?.payload);
@@ -3120,7 +3137,7 @@ function MailContent(props: any) {
               value={replyContent}
               onChange={(e) => setReplyContent(e.target.value)}
             />
-            <DraftOverlay show={showDraftInput} prompt={draftPrompt} setPrompt={setDraftPrompt} drafting={isDrafting} onDraft={onDraft} onHide={onHideDraft} onShow={onShowDraft} lang={lang} />
+            <DraftOverlay show={showDraftInput} prompt={draftPrompt} setPrompt={setDraftPrompt} drafting={isDrafting} onDraft={onDraft} onAutoGenerate={onAutoGenerate} onHide={onHideDraft} onShow={onShowDraft} lang={lang} isReplyMode={isReplyMode} />
           </div>
           {/* Reply Attachments */}
           <input type="file" multiple ref={replyFileInputRef} className="hidden" onChange={handleReplyFileSelect} />
@@ -3245,31 +3262,48 @@ function CalendarEditor({ event, onSave, onCancel, lang, t, isDemo }: { event: C
   );
 }
 
-function DraftOverlay({ show, prompt, setPrompt, drafting, onDraft, onHide, onShow, lang }: any) {
+function DraftOverlay({ show, prompt, setPrompt, drafting, onDraft, onAutoGenerate, onHide, onShow, lang, isReplyMode }: any) {
   if (show) {
+    // Refinement input: shown after initial draft is generated (reply mode) or as prompt input (compose mode)
     return (
       <div className="absolute bottom-3 left-3 right-3 flex gap-2 bg-gm-bg p-2 rounded-lg shadow-lg border border-gm-border">
         <input
           type="text"
-          className="flex-1 text-sm outline-none px-2"
-          placeholder={lang === "zh" ? "告诉 AI 你想写什么..." : "Tell AI what to write..."}
+          className="flex-1 text-sm outline-none px-2 bg-transparent"
+          placeholder={isReplyMode
+            ? (lang === "zh" ? "\u4e0d\u6ee1\u610f\uff1f\u544a\u8bc9 AI \u600e\u4e48\u6539..." : "Not satisfied? Tell AI how to revise...")
+            : (lang === "zh" ? "\u544a\u8bc9 AI \u4f60\u60f3\u5199\u4ec0\u4e48..." : "Tell AI what to write...")}
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && onDraft()}
+          onKeyDown={(e) => e.key === "Enter" && prompt.trim() && onDraft()}
           autoFocus
         />
-        <Button size="sm" onClick={onDraft} disabled={drafting} className="bg-[#1a73e8] text-white h-8">
-          {drafting ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+        <Button size="sm" onClick={onDraft} disabled={drafting || !prompt.trim()} className="bg-[#1a73e8] text-white h-8">
+          {drafting ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
         </Button>
+        {isReplyMode && (
+          <Button size="sm" variant="ghost" onClick={() => { onAutoGenerate?.(); }} disabled={drafting} className="h-8 text-gm-blue" title={lang === "zh" ? "\u91cd\u65b0\u751f\u6210" : "Regenerate"}>
+            <RefreshCw className="h-3 w-3" />
+          </Button>
+        )}
         <Button size="sm" variant="ghost" onClick={onHide} className="h-8"><X className="h-3 w-3" /></Button>
       </div>
     );
   }
+  // Initial button
   return (
     <div className="absolute bottom-3 left-3">
-      <Button variant="outline" size="sm" className="rounded-full gap-1 border-gm-border-strong text-gm-blue hover:bg-gm-blue-bg bg-gm-bg text-xs" onClick={onShow}>
-        <Sparkles className="h-3 w-3" />
-        {lang === "zh" ? "AI 帮我写" : "Draft with AI"}
+      <Button
+        variant="outline"
+        size="sm"
+        className="rounded-full gap-1 border-gm-border-strong text-gm-blue hover:bg-gm-blue-bg bg-gm-bg text-xs"
+        onClick={() => isReplyMode ? onAutoGenerate?.() : onShow?.()}
+        disabled={drafting}
+      >
+        {drafting ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+        {drafting
+          ? (lang === "zh" ? "AI \u751f\u6210\u4e2d..." : "Generating...")
+          : (lang === "zh" ? "AI \u5e2e\u6211\u5199" : "Draft with AI")}
       </Button>
     </div>
   );

@@ -87,18 +87,58 @@ Respond ONLY with a JSON object: {"summary": "...", "action": "..."}
  */
 export async function generateDraft(
   apiKey: string,
-  params: { prompt: string; context?: string; lang: string; model?: string; isReply?: boolean }
+  params: {
+    prompt: string;
+    context?: string;
+    lang: string;
+    model?: string;
+    isReply?: boolean;
+    currentDraft?: string;
+  }
 ): Promise<{ draft: string }> {
   if (!apiKey) throw new Error('Gemini API key not configured');
-  if (!params.prompt?.trim()) throw new Error('Prompt required');
 
   const client = getClient(apiKey);
 
-  const langInstruction = params.isReply && params.context
-    ? 'IMPORTANT: Reply in the SAME language as the original email below. Detect the language of the email and match it exactly. The user instruction may be in a different language — that is just their command to you, NOT the desired output language.'
-    : `Respond in ${params.lang === 'zh' ? 'Chinese' : 'English'}.`;
+  let fullPrompt: string;
 
-  const fullPrompt = `You are a helpful assistant. Write a draft based on this instruction: ${params.prompt}${params.context ? `\n\nContext:\n${params.context}` : ''}\n\n${langInstruction}\nRespond ONLY with the body content, no explanations.`;
+  if (params.currentDraft) {
+    // Refine mode: user wants to modify an existing draft
+    const langInstruction = params.isReply && params.context
+      ? 'IMPORTANT: Keep the reply in the SAME language as the original email.'
+      : `Respond in ${params.lang === 'zh' ? 'Chinese' : 'English'}.`;
+
+    fullPrompt = `You are a helpful email assistant. The user has a draft and wants you to revise it.
+
+User's modification request: ${params.prompt}
+
+Current draft:
+${params.currentDraft}
+${params.context ? `\nOriginal email context:\n${params.context}` : ''}
+
+${langInstruction}
+Apply the user's requested changes to the draft. Respond ONLY with the revised body content, no explanations.`;
+  } else if (params.isReply && params.context) {
+    // Auto-reply mode: generate a reply based on the email content
+    const instruction = params.prompt?.trim()
+      ? params.prompt
+      : 'Write a professional, concise reply to this email';
+
+    fullPrompt = `You are a helpful email assistant. ${instruction}.
+
+${params.context}
+
+IMPORTANT: Reply in the SAME language as the original email. Detect the language of the email and match it exactly. The user instruction may be in a different language — that is just their command to you, NOT the desired output language.
+Respond ONLY with the reply body content (greeting + body + sign-off), no explanations or subject line.`;
+  } else {
+    // Compose mode: generate a new draft from prompt
+    if (!params.prompt?.trim()) throw new Error('Prompt required');
+
+    fullPrompt = `You are a helpful assistant. Write a draft based on this instruction: ${params.prompt}${params.context ? `\n\nContext:\n${params.context}` : ''}
+
+Respond in ${params.lang === 'zh' ? 'Chinese' : 'English'}.
+Respond ONLY with the body content, no explanations.`;
+  }
 
   const result = await client.models.generateContent({
     model: params.model || 'gemini-2.5-flash',
