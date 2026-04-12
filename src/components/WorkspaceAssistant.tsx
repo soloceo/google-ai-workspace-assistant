@@ -184,7 +184,12 @@ function applyTheme(theme: string) {
 }
 
 function saveSettingsToStorage(s: { aiModel: string; signature: string; theme: string }) {
-  localStorage.setItem("workspace_settings", JSON.stringify(s));
+  try {
+    const existing = JSON.parse(localStorage.getItem("workspace_settings") || '{}');
+    localStorage.setItem("workspace_settings", JSON.stringify({ ...existing, ...s }));
+  } catch {
+    localStorage.setItem("workspace_settings", JSON.stringify(s));
+  }
 }
 
 // Decode email body
