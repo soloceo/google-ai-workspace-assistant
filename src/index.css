@@ -1,0 +1,183 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* Google Material Design color tokens */
+  --color-gm-bg: var(--gm-bg);
+  --color-gm-bg-dim: var(--gm-bg-dim);
+  --color-gm-bg-container: var(--gm-bg-container);
+  --color-gm-text: var(--gm-text);
+  --color-gm-text-secondary: var(--gm-text-secondary);
+  --color-gm-text-primary: var(--gm-text-primary);
+  --color-gm-blue: var(--gm-blue);
+  --color-gm-blue-bg: var(--gm-blue-bg);
+  --color-gm-blue-bg-faint: var(--gm-blue-bg-faint);
+  --color-gm-blue-border-faint: var(--gm-blue-border-faint);
+  --color-gm-border: var(--gm-border);
+  --color-gm-border-strong: var(--gm-border-strong);
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.5rem;
+
+    --gm-bg: #ffffff;
+    --gm-bg-dim: #f8f9fa;
+    --gm-bg-container: #f1f3f4;
+    --gm-text: #3c4043;
+    --gm-text-secondary: #5f6368;
+    --gm-text-primary: #202124;
+    --gm-blue: #1a73e8;
+    --gm-blue-bg: #e8f0fe;
+    --gm-blue-bg-faint: rgba(232, 240, 254, 0.3);
+    --gm-blue-border-faint: rgba(26, 115, 232, 0.2);
+    --gm-border: #e0e0e0;
+    --gm-border-strong: #dadce0;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 48%;
+
+    --gm-bg: #1f1f1f;
+    --gm-bg-dim: #2d2d2d;
+    --gm-bg-container: #3c4043;
+    --gm-text: #e8eaed;
+    --gm-text-secondary: #9aa0a6;
+    --gm-text-primary: #e8eaed;
+    --gm-blue: #8ab4f8;
+    --gm-blue-bg: #004a77;
+    --gm-blue-bg-faint: rgba(0, 74, 119, 0.3);
+    --gm-blue-border-faint: rgba(138, 180, 248, 0.2);
+    --gm-border: #5f6368;
+    --gm-border-strong: #5f6368;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+.email-html-content {
+  all: initial;
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #3c4043;
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.email-html-content * {
+  max-width: 100%;
+}
+
+.email-html-content a {
+  color: #1a73e8;
+  text-decoration: underline;
+}
+
+.dark input,
+.dark textarea,
+.dark select {
+  background-color: var(--color-gm-bg);
+  color: var(--color-gm-text);
+  border-color: var(--color-gm-border-strong);
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: var(--color-gm-text-secondary);
+}
+
+.dark .email-html-content {
+  color: #e8eaed;
+}
+
+.dark .email-html-content a {
+  color: #8ab4f8;
+}

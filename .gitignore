@@ -1,0 +1,13 @@
+node_modules/
+dist/
+build/
+coverage/
+.DS_Store
+*.log
+
+# Environment files (contain secrets)
+.env*
+!.env.example
+
+# Claude session data
+.claude/

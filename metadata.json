@@ -1,0 +1,5 @@
+{
+  "name": "Google AI Workspace Assistant",
+  "description": "A unified AI assistant for Google Mail and Calendar, featuring a polished Material Design interface.",
+  "requestFramePermissions": []
+}
