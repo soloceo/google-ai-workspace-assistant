@@ -2930,19 +2930,19 @@ function MailContent(props: any) {
         <iframe
           srcDoc={sanitizeHtml(body.html)}
           title="Email Content"
-          className="w-full min-h-[250px] border border-gm-border rounded-lg bg-gm-bg"
+          className="w-full min-h-[400px] border border-gm-border rounded-lg bg-gm-bg"
           sandbox=""
           onLoad={(e) => {
             const iframe = e.target as HTMLIFrameElement;
             try {
               if (iframe.contentWindow?.document.body) {
-                iframe.style.height = Math.max(250, iframe.contentWindow.document.body.scrollHeight + 40) + "px";
+                iframe.style.height = Math.max(400, iframe.contentWindow.document.body.scrollHeight + 40) + "px";
               }
             } catch (_) {}
           }}
         />
       ) : (
-        <div className="whitespace-pre-wrap">{body.text || item?.snippet || ""}</div>
+        <div className="whitespace-pre-wrap text-sm leading-relaxed">{body.text || item?.snippet || ""}</div>
       )}
 
       {/* Attachments — enhanced with inline preview + AI analysis */}
@@ -3132,10 +3132,24 @@ function MailContent(props: any) {
         <div className="mt-6 space-y-3 border border-gm-border rounded-xl p-4 bg-gm-bg-dim">
           <div className="relative">
             <textarea
-              className="w-full h-28 p-3 border border-gm-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-gm-blue text-sm resize-none"
+              className="w-full min-h-[180px] max-h-[400px] p-3 border border-gm-border-strong rounded-lg focus:outline-none focus:ring-2 focus:ring-gm-blue text-sm resize-y"
               placeholder={t?.reply ? `${t.reply}...` : "Write your reply..."}
               value={replyContent}
-              onChange={(e) => setReplyContent(e.target.value)}
+              onChange={(e) => {
+                setReplyContent(e.target.value);
+                // Auto-resize
+                e.target.style.height = 'auto';
+                e.target.style.height = Math.min(400, Math.max(180, e.target.scrollHeight)) + 'px';
+              }}
+              ref={(el) => {
+                // Auto-resize on initial content (e.g. after AI draft)
+                if (el && replyContent) {
+                  requestAnimationFrame(() => {
+                    el.style.height = 'auto';
+                    el.style.height = Math.min(400, Math.max(180, el.scrollHeight)) + 'px';
+                  });
+                }
+              }}
             />
             <DraftOverlay show={showDraftInput} prompt={draftPrompt} setPrompt={setDraftPrompt} drafting={isDrafting} onDraft={onDraft} onAutoGenerate={onAutoGenerate} onHide={onHideDraft} onShow={onShowDraft} lang={lang} isReplyMode={isReplyMode} />
           </div>
