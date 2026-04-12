@@ -2446,7 +2446,12 @@ function SettingsPanel({ settings, setSettings, onSave, onClose, lang, t, accoun
           {/* Gemini API Key */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-gm-text-primary">{t.geminiApiKey || "Gemini API Key"}</label>
-            <p className="text-xs text-gm-text-secondary">{t.geminiApiKeyDesc || "Get your key from aistudio.google.com"}</p>
+            <p className="text-xs text-gm-text-secondary">
+              <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-gm-blue hover:underline inline-flex items-center gap-1">
+                {t.geminiApiKeyDesc || "Get your key from aistudio.google.com"}
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            </p>
             <div className="relative">
               <input
                 type={showApiKey ? "text" : "password"}
