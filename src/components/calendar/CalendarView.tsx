@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   ChevronLeft, ChevronRight, Clock, MapPin, Trash2,
   Pencil, X, Loader2, Plus
@@ -25,20 +25,28 @@ function isSameDay(d1: Date, d2: Date): boolean {
   return d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate();
 }
 
+/** Format a Date to local datetime-local string (YYYY-MM-DDThh:mm) */
+function toLocalDatetimeString(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 interface CalendarViewProps {
   events: any[];
   loading: boolean;
   isDemo: boolean;
   lang: Language;
   accounts: AccountSummary[];
-  onCreateEvent: (event: { summary: string; description?: string; location?: string; start: string; end: string }) => Promise<void>;
+  sendFromAccount: string;
+  onCreateEvent: (event: { summary: string; description?: string; location?: string; start: string; end: string }, accountEmail?: string) => Promise<void>;
   onUpdateEvent: (id: string, event: { summary?: string; description?: string; location?: string; start?: string; end?: string }) => Promise<void>;
   onDeleteEvent: (id: string) => Promise<void>;
+  onRegisterCreate?: (fn: () => void) => void;
 }
 
 export default function CalendarView({
-  events, loading, isDemo, lang, accounts,
-  onCreateEvent, onUpdateEvent, onDeleteEvent,
+  events, loading, isDemo, lang, accounts, sendFromAccount,
+  onCreateEvent, onUpdateEvent, onDeleteEvent, onRegisterCreate,
 }: CalendarViewProps) {
   const t = translations[lang];
 
@@ -53,7 +61,20 @@ export default function CalendarView({
   const [newLocation, setNewLocation] = useState("");
   const [newStart, setNewStart] = useState("");
   const [newEnd, setNewEnd] = useState("");
+  const [newAccount, setNewAccount] = useState(sendFromAccount);
   const [saving, setSaving] = useState(false);
+
+  const openCreateModal = useCallback(() => {
+    const d = selectedDate;
+    setNewStart(toLocalDatetimeString(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 9, 0)));
+    setNewEnd(toLocalDatetimeString(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 10, 0)));
+    setNewAccount(sendFromAccount);
+    setShowCreateModal(true);
+  }, [selectedDate, sendFromAccount]);
+
+  useEffect(() => {
+    onRegisterCreate?.(openCreateModal);
+  }, [onRegisterCreate, openCreateModal]);
 
   // Calendar grid data
   const year = currentDate.getFullYear();
@@ -94,7 +115,7 @@ export default function CalendarView({
         location: newLocation || undefined,
         start: newStart || new Date().toISOString(),
         end: newEnd || new Date(Date.now() + 3600000).toISOString(),
-      });
+      }, newAccount || undefined);
       setShowCreateModal(false);
       setNewSummary(""); setNewDescription(""); setNewLocation(""); setNewStart(""); setNewEnd("");
     } catch (e: any) {
@@ -102,7 +123,7 @@ export default function CalendarView({
     } finally {
       setSaving(false);
     }
-  }, [newSummary, newDescription, newLocation, newStart, newEnd, onCreateEvent, t]);
+  }, [newSummary, newDescription, newLocation, newStart, newEnd, newAccount, onCreateEvent, t]);
 
   const handleUpdate = useCallback(async () => {
     if (!editingEvent) return;
@@ -170,7 +191,11 @@ export default function CalendarView({
                 {dayEvents.length > 0 && (
                   <div className="flex gap-0.5 mt-0.5">
                     {dayEvents.slice(0, 3).map((ev, j) => (
-                      <div key={j} className={`w-1 h-1 rounded-full ${isSelected ? "bg-white/80" : "bg-[var(--blue)]"}`} />
+                      <div
+                        key={j}
+                        className="w-1 h-1 rounded-full"
+                        style={{ backgroundColor: isSelected ? "rgba(255,255,255,0.8)" : (ev.accountColor || "var(--blue)") }}
+                      />
                     ))}
                   </div>
                 )}
@@ -182,12 +207,7 @@ export default function CalendarView({
         {/* Create button for mobile */}
         <div className="p-3 border-t border-[var(--border-light)] lg:hidden">
           <button
-            onClick={() => {
-              const d = selectedDate;
-              setNewStart(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 9, 0).toISOString().slice(0, 16));
-              setNewEnd(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 10, 0).toISOString().slice(0, 16));
-              setShowCreateModal(true);
-            }}
+            onClick={openCreateModal}
             className="w-full flex items-center justify-center gap-2 h-10 text-sm font-medium text-white bg-[var(--blue)] hover:bg-[var(--blue-hover)] rounded-[4px] t-btn-transition"
           >
             <Plus className="size-4" />
@@ -206,8 +226,9 @@ export default function CalendarView({
             <button
               onClick={() => {
                 const d = selectedDate;
-                setNewStart(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 9, 0).toISOString().slice(0, 16));
-                setNewEnd(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 10, 0).toISOString().slice(0, 16));
+                setNewStart(toLocalDatetimeString(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 9, 0)));
+                setNewEnd(toLocalDatetimeString(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 10, 0)));
+                setNewAccount(sendFromAccount);
                 setShowCreateModal(true);
               }}
               className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-[var(--blue)] hover:bg-[var(--blue-hover)] rounded-[4px] t-btn-transition"
@@ -267,7 +288,14 @@ export default function CalendarView({
                       ) : (
                         // View mode
                         <>
-                          <h3 className="text-sm font-medium text-[var(--text-primary)]">{event.summary}</h3>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-sm font-medium text-[var(--text-primary)]">{event.summary}</h3>
+                            {accounts.length > 1 && event.accountEmail && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg)] text-[var(--text-quaternary)] flex-shrink-0">
+                                {event.accountEmail}
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-3 mt-1">
                             <span className="flex items-center gap-1 text-xs text-[var(--text-tertiary)]">
                               <Clock className="size-3" />
@@ -335,6 +363,20 @@ export default function CalendarView({
               className="w-full h-9 px-3 text-sm bg-[var(--bg-alt)] border-none rounded-[4px] text-[var(--text-body)] placeholder:text-[var(--text-placeholder)] focus:outline-none focus:ring-2 focus:ring-[var(--blue)]" />
             <textarea value={newDescription} onChange={e => setNewDescription(e.target.value)} placeholder={t.description} rows={3}
               className="w-full px-3 py-2 text-sm bg-[var(--bg-alt)] border-none rounded-[4px] text-[var(--text-body)] placeholder:text-[var(--text-placeholder)] focus:outline-none focus:ring-2 focus:ring-[var(--blue)] resize-none" />
+            {accounts.length > 1 && (
+              <div>
+                <label className="text-xs text-[var(--text-tertiary)] mb-1 block">{t.account}</label>
+                <select
+                  value={newAccount}
+                  onChange={e => setNewAccount(e.target.value)}
+                  className="w-full h-9 px-3 text-sm bg-[var(--bg-alt)] border-none rounded-[4px] text-[var(--text-body)] focus:outline-none focus:ring-2 focus:ring-[var(--blue)]"
+                >
+                  {accounts.map(a => (
+                    <option key={a.email} value={a.email}>{a.name} ({a.email})</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="flex gap-2 pt-1">
               <button onClick={handleCreate} disabled={saving || !newSummary.trim()}
                 className="flex-1 h-10 text-sm font-medium text-white bg-[var(--blue)] hover:bg-[var(--blue-hover)] rounded-[4px] t-btn-transition disabled:opacity-50">

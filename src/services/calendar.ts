@@ -58,6 +58,16 @@ export async function createEvent(
 
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
+  // Ensure datetime strings are valid RFC 3339 (add seconds if missing, convert local to ISO)
+  const toRfc3339 = (dt: string): string => {
+    // If already ISO (contains Z or timezone offset), use as-is
+    if (/[Z+]/.test(dt.slice(10))) return dt;
+    // datetime-local format "YYYY-MM-DDThh:mm" → parse as local and convert
+    const d = new Date(dt);
+    if (isNaN(d.getTime())) return dt;
+    return d.toISOString();
+  };
+
   return googleFetch(`${CALENDAR_API}/calendars/primary/events`, token, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -65,8 +75,8 @@ export async function createEvent(
       summary: event.summary,
       description: event.description,
       location: event.location,
-      start: { dateTime: event.start, timeZone },
-      end: { dateTime: event.end, timeZone },
+      start: { dateTime: toRfc3339(event.start), timeZone },
+      end: { dateTime: toRfc3339(event.end), timeZone },
     }),
   });
 }
@@ -86,12 +96,13 @@ export async function updateEvent(
     end?: string;
   }
 ): Promise<any> {
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const body: Record<string, any> = {};
   if (event.summary !== undefined) body.summary = event.summary;
   if (event.description !== undefined) body.description = event.description;
   if (event.location !== undefined) body.location = event.location;
-  if (event.start !== undefined) body.start = { dateTime: event.start };
-  if (event.end !== undefined) body.end = { dateTime: event.end };
+  if (event.start !== undefined) body.start = { dateTime: event.start, timeZone };
+  if (event.end !== undefined) body.end = { dateTime: event.end, timeZone };
 
   return googleFetch(
     `${CALENDAR_API}/calendars/primary/events/${eventId}`,

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Sparkles, Send, Trash2, Loader2, User, Bot,
-  CheckSquare, Calendar, Mail, Lightbulb, ChevronRight, KeyRound,
+  CheckSquare, Calendar, Mail, Lightbulb, ChevronRight, KeyRound, ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import { translations, type Language } from "../../translations";
@@ -50,17 +50,25 @@ function renderMarkdown(text: string): string {
 
 export type ActionExecutor = (name: string, args: Record<string, any>) => Promise<{ success: boolean; message: string }>;
 
+interface EmailRef {
+  id: string;
+  subject: string;
+  from: string;
+}
+
 interface ChatViewProps {
   isDemo: boolean;
   lang: Language;
   geminiApiKey: string;
   aiModel: string;
   workspaceContext: string;
+  emails: any[];
   executeAction: ActionExecutor;
   onOpenSettings?: () => void;
+  onNavigateToEmail?: (emailId: string) => void;
 }
 
-export default function ChatView({ isDemo, lang, geminiApiKey, aiModel, workspaceContext, executeAction, onOpenSettings }: ChatViewProps) {
+export default function ChatView({ isDemo, lang, geminiApiKey, aiModel, workspaceContext, emails, executeAction, onOpenSettings, onNavigateToEmail }: ChatViewProps) {
   const t = translations[lang];
 
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
@@ -216,6 +224,27 @@ export default function ChatView({ isDemo, lang, geminiApiKey, aiModel, workspac
     { label: t.chipScheduleConflicts, prompt: lang === "zh" ? "检查我的日程是否有冲突" : "Check for schedule conflicts" },
   ];
 
+  // Extract email references from AI message text by matching against actual emails
+  const findEmailRefs = useCallback((text: string): EmailRef[] => {
+    if (!emails.length || !text) return [];
+    const refs: EmailRef[] = [];
+    const seen = new Set<string>();
+    for (const email of emails) {
+      const subject = email.payload?.headers?.find((h: any) => h.name?.toLowerCase() === "subject")?.value || "";
+      const from = email.payload?.headers?.find((h: any) => h.name?.toLowerCase() === "from")?.value || "";
+      const senderName = from.match(/^([^<]+)/)?.[1]?.trim().replace(/"/g, "") || from;
+      if (!subject && !senderName) continue;
+      // Match if subject or sender name appears in the AI response
+      const subjectMatch = subject && text.includes(subject);
+      const senderMatch = senderName && senderName.length > 2 && text.includes(senderName);
+      if ((subjectMatch || senderMatch) && !seen.has(email.id)) {
+        seen.add(email.id);
+        refs.push({ id: email.id, subject: subject || "(no subject)", from: senderName });
+      }
+    }
+    return refs;
+  }, [emails]);
+
   const hasApiKey = !!geminiApiKey;
 
   return (
@@ -298,10 +327,33 @@ export default function ChatView({ isDemo, lang, geminiApiKey, aiModel, workspac
                 }`}>
                   {msg.role === "assistant" ? (
                     msg.text ? (
-                      <div
-                        className="chat-markdown text-sm"
-                        dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }}
-                      />
+                      <>
+                        <div
+                          className="chat-markdown text-sm"
+                          dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }}
+                        />
+                        {/* Email reference links */}
+                        {(() => {
+                          const refs = findEmailRefs(msg.text);
+                          if (!refs.length) return null;
+                          return (
+                            <div className="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-[var(--border-light)]">
+                              {refs.map(ref => (
+                                <button
+                                  key={ref.id}
+                                  onClick={() => onNavigateToEmail?.(ref.id)}
+                                  className="inline-flex items-center gap-1 px-2 py-1 text-xs text-[var(--blue)] bg-[var(--blue-light)] hover:bg-[var(--blue)]/15 rounded-[4px] t-transition max-w-[280px]"
+                                  title={ref.subject}
+                                >
+                                  <Mail className="size-3 flex-shrink-0" />
+                                  <span className="truncate">{ref.from}: {ref.subject}</span>
+                                  <ExternalLink className="size-2.5 flex-shrink-0" />
+                                </button>
+                              ))}
+                            </div>
+                          );
+                        })()}
+                      </>
                     ) : (
                       <div className="flex gap-1 py-2">
                         <div className="w-1.5 h-1.5 rounded-full bg-[var(--text-placeholder)] typing-dot" />

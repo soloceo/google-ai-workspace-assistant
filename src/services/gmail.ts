@@ -176,11 +176,13 @@ export async function sendMessage(
     for (const att of params.attachments) {
       if (!att.filename || !att.data) continue;
       const mimeType = att.mimeType || 'application/octet-stream';
-      const encodedFilename = encodeURIComponent(att.filename);
+      // Sanitize filename: remove quotes, newlines, and carriage returns to prevent MIME header injection
+      const safeFilename = att.filename.replace(/["\\r\\n\r\n]/g, '_');
+      const encodedFilename = encodeURIComponent(safeFilename);
       parts.push(
         `--${boundary}\r\n` +
-          `Content-Type: ${mimeType}; name="${att.filename}"\r\n` +
-          `Content-Disposition: attachment; filename="${att.filename}"; filename*=UTF-8''${encodedFilename}\r\n` +
+          `Content-Type: ${mimeType}; name="${safeFilename}"\r\n` +
+          `Content-Disposition: attachment; filename="${safeFilename}"; filename*=UTF-8''${encodedFilename}\r\n` +
           `Content-Transfer-Encoding: base64\r\n` +
           `\r\n` +
           att.data

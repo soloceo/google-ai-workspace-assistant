@@ -29,7 +29,8 @@ function getTimeOfDay(lang: Language): string {
 }
 
 function getHeader(email: any, name: string): string {
-  const header = email.payload?.headers?.find((h: any) => h.name === name);
+  const lowerName = name.toLowerCase();
+  const header = email.payload?.headers?.find((h: any) => h.name?.toLowerCase() === lowerName);
   return header?.value || "";
 }
 

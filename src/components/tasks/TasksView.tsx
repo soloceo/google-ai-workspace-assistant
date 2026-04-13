@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Check, Circle, Plus, Trash2, ChevronDown, ChevronRight,
-  ListTodo, Calendar as CalendarIcon, FileText, X,
+  ListTodo, Calendar as CalendarIcon, FileText, X, Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { translations, type Language } from "../../translations";
@@ -18,7 +18,7 @@ interface TasksViewProps {
   onToggleTask: (listId: string, taskId: string, completed: boolean) => void;
   onCreateTask: (listId: string, task: { title: string; notes?: string; due?: string }) => void;
   onDeleteTask: (listId: string, taskId: string) => void;
-  onCreateList: (title: string) => void;
+  onCreateList: (title: string, accountEmail?: string) => void;
   onDeleteList: (listId: string) => void;
   onClearCompleted: (listId: string) => void;
   onRefresh: () => void;
@@ -38,6 +38,7 @@ export default function TasksView({
   const [newDue, setNewDue] = useState("");
   const [showNewList, setShowNewList] = useState(false);
   const [newListTitle, setNewListTitle] = useState("");
+  const [newListAccount, setNewListAccount] = useState("");
   const [showCompleted, setShowCompleted] = useState(true);
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
 
@@ -52,13 +53,10 @@ export default function TasksView({
   // Set first list as active if none selected
   const selectedListId = activeListId || taskLists[0]?.id || null;
 
-  // Filter tasks for active list
+  // Filter tasks for active list (by listId if available, fallback to list id match)
   const listTasks = tasks.filter(t => {
     if (!selectedListId) return false;
-    // Match tasks to the list by checking if they belong to the same account
-    const list = taskLists.find(l => l.id === selectedListId);
-    if (!list) return false;
-    return t.accountEmail === list.accountEmail;
+    return t.listId === selectedListId;
   });
 
   // Split into top-level tasks vs subtasks
@@ -92,10 +90,11 @@ export default function TasksView({
   // ── Create List ──
   const handleAddList = useCallback(() => {
     if (!newListTitle.trim()) return;
-    onCreateList(newListTitle.trim());
+    onCreateList(newListTitle.trim(), newListAccount || undefined);
     setNewListTitle("");
+    setNewListAccount("");
     setShowNewList(false);
-  }, [newListTitle, onCreateList]);
+  }, [newListTitle, newListAccount, onCreateList]);
 
   const selectedList = taskLists.find(l => l.id === selectedListId);
 
@@ -131,12 +130,26 @@ export default function TasksView({
             <p className={`text-sm ${isCompleted ? "line-through text-[var(--text-tertiary)]" : "text-[var(--text-primary)]"}`}>
               {task.title}
             </p>
-            {hasDue && (
-              <p className={`text-xs mt-0.5 flex items-center gap-1 ${isOverdue ? "text-red-500" : "text-[var(--text-tertiary)]"}`}>
-                <CalendarIcon className="size-3" />
-                {dueDate!.toLocaleDateString(lang === "zh" ? "zh-CN" : "en-US", { month: "short", day: "numeric" })}
-              </p>
-            )}
+            <div className="flex items-center gap-2 flex-wrap mt-0.5">
+              {hasDue && (
+                <span className={`text-xs flex items-center gap-1 ${isOverdue ? "text-red-500" : "text-[var(--text-tertiary)]"}`}>
+                  <CalendarIcon className="size-3" />
+                  {dueDate!.toLocaleDateString(lang === "zh" ? "zh-CN" : "en-US", { month: "short", day: "numeric" })}
+                </span>
+              )}
+              {task.updated && isExpanded && (
+                <span className="text-[10px] text-[var(--text-quaternary)] flex items-center gap-0.5">
+                  <Clock className="size-2.5" />
+                  {new Date(task.updated).toLocaleDateString(lang === "zh" ? "zh-CN" : "en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                </span>
+              )}
+              {isCompleted && task.completed && isExpanded && (
+                <span className="text-[10px] text-emerald-500 flex items-center gap-0.5">
+                  <Check className="size-2.5" />
+                  {new Date(task.completed).toLocaleDateString(lang === "zh" ? "zh-CN" : "en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                </span>
+              )}
+            </div>
             {task.notes && isExpanded && (
               <p className="text-xs text-[var(--text-tertiary)] mt-1.5 whitespace-pre-wrap leading-relaxed">
                 {task.notes}
@@ -176,43 +189,70 @@ export default function TasksView({
           </div>
 
           <div className="flex-1 overflow-y-auto py-1">
-            {taskLists.map(list => (
-              <button
-                key={list.id}
-                onClick={() => setActiveListId(list.id)}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left t-transition ${
-                  selectedListId === list.id
-                    ? "bg-[var(--blue-light)] text-[var(--blue)] font-medium"
-                    : "text-[var(--text-body)] hover:bg-[var(--bg-alt)]"
-                }`}
-              >
-                <div
-                  className="w-2 h-2 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: list.accountColor }}
-                />
-                <span className="truncate">{list.title}</span>
-                <span className="ml-auto text-xs text-[var(--text-quaternary)]">
-                  {tasks.filter(t => t.accountEmail === list.accountEmail && t.status === "needsAction").length}
-                </span>
-              </button>
-            ))}
+            {taskLists.map(list => {
+              const pendingCount = tasks.filter(t => t.listId === list.id && t.status === "needsAction").length;
+              return (
+                <button
+                  key={list.id}
+                  onClick={() => setActiveListId(list.id)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left t-transition ${
+                    selectedListId === list.id
+                      ? "bg-[var(--blue-light)] text-[var(--blue)] font-medium"
+                      : "text-[var(--text-body)] hover:bg-[var(--bg-alt)]"
+                  }`}
+                >
+                  <div
+                    className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: list.accountColor }}
+                    title={list.accountEmail}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <span className="truncate block">{list.title}</span>
+                    {accounts.length > 1 && (
+                      <span className="text-[10px] text-[var(--text-quaternary)] truncate block">
+                        {list.accountEmail}
+                      </span>
+                    )}
+                  </div>
+                  {pendingCount > 0 && (
+                    <span className="ml-auto text-xs text-[var(--text-quaternary)] flex-shrink-0">
+                      {pendingCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           {/* Add List */}
           <div className="border-t border-[var(--border-light)] p-2">
             {showNewList ? (
-              <div className="flex gap-1.5">
-                <input
-                  autoFocus
-                  value={newListTitle}
-                  onChange={e => setNewListTitle(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter") handleAddList(); if (e.key === "Escape") setShowNewList(false); }}
-                  placeholder={t.newList}
-                  className="flex-1 h-8 px-2 text-sm bg-transparent border border-[var(--border-light)] rounded-[4px] text-[var(--text-primary)] placeholder:text-[var(--text-quaternary)] focus:outline-none focus:border-[var(--blue)]"
-                />
-                <button onClick={handleAddList} className="h-8 px-2 text-sm text-white bg-[var(--blue)] hover:bg-[var(--blue-hover)] rounded-[4px] t-btn-transition">
-                  {t.addList}
-                </button>
+              <div className="space-y-1.5">
+                <div className="flex gap-1.5">
+                  <input
+                    autoFocus
+                    value={newListTitle}
+                    onChange={e => setNewListTitle(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") handleAddList(); if (e.key === "Escape") setShowNewList(false); }}
+                    placeholder={t.newList}
+                    className="flex-1 h-8 px-2 text-sm bg-transparent border border-[var(--border-light)] rounded-[4px] text-[var(--text-primary)] placeholder:text-[var(--text-quaternary)] focus:outline-none focus:border-[var(--blue)]"
+                  />
+                  <button onClick={handleAddList} className="h-8 px-2 text-sm text-white bg-[var(--blue)] hover:bg-[var(--blue-hover)] rounded-[4px] t-btn-transition">
+                    {t.addList}
+                  </button>
+                </div>
+                {accounts.length > 1 && (
+                  <select
+                    value={newListAccount}
+                    onChange={e => setNewListAccount(e.target.value)}
+                    className="w-full h-7 px-2 text-xs bg-transparent border border-[var(--border-light)] rounded-[4px] text-[var(--text-body)]"
+                  >
+                    <option value="">{t.allAccounts}</option>
+                    {accounts.map(a => (
+                      <option key={a.email} value={a.email}>{a.name} ({a.email})</option>
+                    ))}
+                  </select>
+                )}
               </div>
             ) : (
               <button

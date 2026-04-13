@@ -28,6 +28,7 @@ export interface Task {
   // Multi-account tracking (added client-side)
   accountEmail?: string;
   accountColor?: string;
+  listId?: string;
 }
 
 // ── Task Lists ────────────────────────────────────────────────
@@ -217,6 +218,7 @@ export async function fetchAllAccountTasks(
               ...task,
               accountEmail: account.email,
               accountColor: account.color,
+              listId: list.id,
             });
           }
         }

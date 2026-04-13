@@ -95,18 +95,18 @@ const MOCK_TASK_LISTS: (TaskList & { accountEmail: string; accountColor: string 
 ];
 
 const MOCK_TASKS: Task[] = [
-  { id: "t1", title: "Review project proposal", notes: "Check budget section and timeline estimates", status: "needsAction", due: new Date(Date.now() + 86400000).toISOString(), accountEmail: DEMO_ACCOUNTS[0].email, accountColor: DEMO_ACCOUNTS[0].color },
-  { id: "t2", title: "Send weekly report", status: "needsAction", due: new Date(Date.now() + 172800000).toISOString(), accountEmail: DEMO_ACCOUNTS[0].email, accountColor: DEMO_ACCOUNTS[0].color },
-  { id: "t3", title: "Schedule team meeting", status: "completed", completed: new Date().toISOString(), accountEmail: DEMO_ACCOUNTS[0].email, accountColor: DEMO_ACCOUNTS[0].color },
-  { id: "t4", title: "Update API documentation", notes: "Include new endpoints for v2", status: "needsAction", accountEmail: DEMO_ACCOUNTS[0].email, accountColor: DEMO_ACCOUNTS[0].color },
-  { id: "t5", title: "Fix login bug", status: "needsAction", due: new Date(Date.now() + 43200000).toISOString(), accountEmail: DEMO_ACCOUNTS[0].email, accountColor: DEMO_ACCOUNTS[0].color },
-  { id: "t6", title: "Prepare Q3 presentation", notes: "Include revenue charts and growth metrics", status: "needsAction", due: new Date(Date.now() + 259200000).toISOString(), accountEmail: DEMO_ACCOUNTS[1].email, accountColor: DEMO_ACCOUNTS[1].color },
-  { id: "t7", title: "Code review for PR #42", status: "needsAction", accountEmail: DEMO_ACCOUNTS[1].email, accountColor: DEMO_ACCOUNTS[1].color },
-  { id: "t8", title: "Deploy staging environment", status: "completed", completed: new Date(Date.now() - 86400000).toISOString(), accountEmail: DEMO_ACCOUNTS[1].email, accountColor: DEMO_ACCOUNTS[1].color },
-  { id: "t9", title: "Interview candidate", notes: "Senior frontend position, 2pm slot", status: "needsAction", due: new Date(Date.now() + 172800000).toISOString(), accountEmail: DEMO_ACCOUNTS[1].email, accountColor: DEMO_ACCOUNTS[1].color },
-  { id: "t10", title: "Buy groceries", notes: "Milk, eggs, bread, vegetables", status: "needsAction", accountEmail: DEMO_ACCOUNTS[0].email, accountColor: DEMO_ACCOUNTS[0].color },
-  { id: "t11", title: "Pick up dry cleaning", status: "needsAction", due: new Date(Date.now() + 86400000).toISOString(), accountEmail: DEMO_ACCOUNTS[0].email, accountColor: DEMO_ACCOUNTS[0].color },
-  { id: "t12", title: "Order new monitor", status: "completed", completed: new Date(Date.now() - 172800000).toISOString(), accountEmail: DEMO_ACCOUNTS[0].email, accountColor: DEMO_ACCOUNTS[0].color },
+  { id: "t1", title: "Review project proposal", notes: "Check budget section and timeline estimates", status: "needsAction", due: new Date(Date.now() + 86400000).toISOString(), listId: "list1", accountEmail: DEMO_ACCOUNTS[0].email, accountColor: DEMO_ACCOUNTS[0].color },
+  { id: "t2", title: "Send weekly report", status: "needsAction", due: new Date(Date.now() + 172800000).toISOString(), listId: "list1", accountEmail: DEMO_ACCOUNTS[0].email, accountColor: DEMO_ACCOUNTS[0].color },
+  { id: "t3", title: "Schedule team meeting", status: "completed", completed: new Date().toISOString(), listId: "list1", accountEmail: DEMO_ACCOUNTS[0].email, accountColor: DEMO_ACCOUNTS[0].color },
+  { id: "t4", title: "Update API documentation", notes: "Include new endpoints for v2", status: "needsAction", listId: "list1", accountEmail: DEMO_ACCOUNTS[0].email, accountColor: DEMO_ACCOUNTS[0].color },
+  { id: "t5", title: "Fix login bug", status: "needsAction", due: new Date(Date.now() + 43200000).toISOString(), listId: "list1", accountEmail: DEMO_ACCOUNTS[0].email, accountColor: DEMO_ACCOUNTS[0].color },
+  { id: "t6", title: "Prepare Q3 presentation", notes: "Include revenue charts and growth metrics", status: "needsAction", due: new Date(Date.now() + 259200000).toISOString(), listId: "list2", accountEmail: DEMO_ACCOUNTS[1].email, accountColor: DEMO_ACCOUNTS[1].color },
+  { id: "t7", title: "Code review for PR #42", status: "needsAction", listId: "list2", accountEmail: DEMO_ACCOUNTS[1].email, accountColor: DEMO_ACCOUNTS[1].color },
+  { id: "t8", title: "Deploy staging environment", status: "completed", completed: new Date(Date.now() - 86400000).toISOString(), listId: "list2", accountEmail: DEMO_ACCOUNTS[1].email, accountColor: DEMO_ACCOUNTS[1].color },
+  { id: "t9", title: "Interview candidate", notes: "Senior frontend position, 2pm slot", status: "needsAction", due: new Date(Date.now() + 172800000).toISOString(), listId: "list2", accountEmail: DEMO_ACCOUNTS[1].email, accountColor: DEMO_ACCOUNTS[1].color },
+  { id: "t10", title: "Buy groceries", notes: "Milk, eggs, bread, vegetables", status: "needsAction", listId: "list3", accountEmail: DEMO_ACCOUNTS[0].email, accountColor: DEMO_ACCOUNTS[0].color },
+  { id: "t11", title: "Pick up dry cleaning", status: "needsAction", due: new Date(Date.now() + 86400000).toISOString(), listId: "list3", accountEmail: DEMO_ACCOUNTS[0].email, accountColor: DEMO_ACCOUNTS[0].color },
+  { id: "t12", title: "Order new monitor", status: "completed", completed: new Date(Date.now() - 172800000).toISOString(), listId: "list3", accountEmail: DEMO_ACCOUNTS[0].email, accountColor: DEMO_ACCOUNTS[0].color },
 ];
 
 // Settings
@@ -116,7 +116,6 @@ function loadSettings() {
     if (saved) return JSON.parse(saved);
   } catch {}
   return { aiModel: "gemini-2.5-flash", signature: "", theme: "light" };
-  // Note: gemini-2.5-flash is still valid. Users can switch to 2.5-pro or 2.5-flash-lite in settings.
 }
 
 function applyTheme(theme: string) {
@@ -170,12 +169,16 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
   // Search
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Navigate-to-email from AI chat
+  const [targetEmailId, setTargetEmailId] = useState<string | null>(null);
+
   // Pagination
   const [pageTokens, setPageTokens] = useState<Record<string, string | null>>({});
   const [hasMore, setHasMore] = useState(false);
 
   // Abort
   const abortRef = useRef<AbortController | null>(null);
+  const calendarCreateRef = useRef<(() => void) | null>(null);
 
   // ── Theme ──
   useEffect(() => { applyTheme(settings.theme); }, [settings.theme]);
@@ -350,12 +353,31 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
   }, [isDemo, sendFromAccount, t]);
 
   // ── Calendar Actions ──
-  const handleCreateEvent = useCallback(async (event: { summary: string; description?: string; location?: string; start: string; end: string }) => {
-    if (isDemo) { toast.info(t.demoSendSimulated); return; }
-    const newEvent = await authService.withFreshToken(sendFromAccount, token =>
+  const handleCreateEvent = useCallback(async (event: { summary: string; description?: string; location?: string; start: string; end: string }, accountEmail?: string) => {
+    const targetAccount = accountEmail || sendFromAccount;
+    if (isDemo) {
+      const demoAcct = DEMO_ACCOUNTS.find(a => a.email === targetAccount) || DEMO_ACCOUNTS[0];
+      const demoEvent = {
+        id: `ev${Date.now()}`, summary: event.summary,
+        start: { dateTime: new Date(event.start).toISOString() },
+        end: { dateTime: new Date(event.end).toISOString() },
+        description: event.description, location: event.location,
+        accountEmail: demoAcct.email, accountColor: demoAcct.color,
+      };
+      setCalendarEvents(prev => [...prev, demoEvent].sort((a, b) => {
+        const tA = new Date(a.start?.dateTime || a.start?.date || 0).getTime();
+        const tB = new Date(b.start?.dateTime || b.start?.date || 0).getTime();
+        return tA - tB;
+      }));
+      toast.success(t.actionSuccess);
+      return;
+    }
+    const accounts = authService.getAccounts();
+    const acct = accounts.find(a => a.email === targetAccount);
+    const newEvent = await authService.withFreshToken(targetAccount, token =>
       calendarService.createEvent(token, event)
     );
-    setCalendarEvents(prev => [...prev, { ...newEvent, accountEmail: sendFromAccount }].sort((a, b) => {
+    setCalendarEvents(prev => [...prev, { ...newEvent, accountEmail: targetAccount, accountColor: acct?.color }].sort((a, b) => {
       const tA = new Date(a.start?.dateTime || a.start?.date || 0).getTime();
       const tB = new Date(b.start?.dateTime || b.start?.date || 0).getTime();
       return tA - tB;
@@ -364,16 +386,18 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
   }, [isDemo, sendFromAccount, t]);
 
   const handleUpdateEvent = useCallback(async (eventId: string, event: { summary?: string; description?: string; location?: string; start?: string; end?: string }) => {
-    if (isDemo) { toast.info(t.demoSendSimulated); return; }
-    const updated = await authService.withFreshToken(sendFromAccount, token =>
+    if (isDemo) { toast.success(t.actionSuccess); return; }
+    const existing = calendarEvents.find(e => e.id === eventId);
+    const account = existing?.accountEmail || sendFromAccount;
+    const updated = await authService.withFreshToken(account, token =>
       calendarService.updateEvent(token, eventId, event)
     );
     setCalendarEvents(prev => prev.map(e => e.id === eventId ? { ...updated, accountEmail: e.accountEmail, accountColor: e.accountColor } : e));
     toast.success(t.actionSuccess);
-  }, [isDemo, sendFromAccount, t]);
+  }, [isDemo, calendarEvents, sendFromAccount, t]);
 
   const handleDeleteEvent = useCallback(async (eventId: string) => {
-    if (isDemo) { toast.info(t.demoSendSimulated); return; }
+    if (isDemo) { toast.success(t.actionSuccess); return; }
     const event = calendarEvents.find(e => e.id === eventId);
     if (!event) return;
     await authService.withFreshToken(event.accountEmail || sendFromAccount, token =>
@@ -421,6 +445,7 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
         notes: task.notes,
         due: task.due,
         status: "needsAction",
+        listId,
         accountEmail: list?.accountEmail || DEMO_ACCOUNTS[0].email,
         accountColor: list?.accountColor || DEMO_ACCOUNTS[0].color,
       };
@@ -434,7 +459,7 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
       const created = await authService.withFreshToken(list.accountEmail, token =>
         tasksService.createTask(token, listId, task)
       );
-      setTaskItems(prev => [{ ...created, accountEmail: list.accountEmail, accountColor: list.accountColor }, ...prev]);
+      setTaskItems(prev => [{ ...created, listId, accountEmail: list.accountEmail, accountColor: list.accountColor }, ...prev]);
       toast.success(t.actionSuccess);
     } catch { toast.error(t.actionFailed); }
   }, [isDemo, taskLists, t]);
@@ -456,25 +481,27 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
     } catch { toast.error(t.actionFailed); }
   }, [isDemo, taskItems, t]);
 
-  const handleCreateTaskList = useCallback(async (title: string) => {
+  const handleCreateTaskList = useCallback(async (title: string, accountEmail?: string) => {
+    const targetAccount = accountEmail || sendFromAccount;
     if (isDemo) {
+      const demoAcct = DEMO_ACCOUNTS.find(a => a.email === targetAccount) || DEMO_ACCOUNTS[0];
       const newList = {
         id: `list${Date.now()}`,
         title,
-        accountEmail: DEMO_ACCOUNTS[0].email,
-        accountColor: DEMO_ACCOUNTS[0].color,
+        accountEmail: demoAcct.email,
+        accountColor: demoAcct.color,
       };
       setTaskLists(prev => [...prev, newList]);
       toast.success(t.actionSuccess);
       return;
     }
     try {
-      const created = await authService.withFreshToken(sendFromAccount, token =>
+      const created = await authService.withFreshToken(targetAccount, token =>
         tasksService.createTaskList(token, title)
       );
       const accounts = authService.getAccounts();
-      const acct = accounts.find(a => a.email === sendFromAccount);
-      setTaskLists(prev => [...prev, { ...created, accountEmail: sendFromAccount, accountColor: acct?.color || "#4285f4" }]);
+      const acct = accounts.find(a => a.email === targetAccount);
+      setTaskLists(prev => [...prev, { ...created, accountEmail: targetAccount, accountColor: acct?.color || "#4285f4" }]);
       toast.success(t.actionSuccess);
     } catch { toast.error(t.actionFailed); }
   }, [isDemo, sendFromAccount, t]);
@@ -492,15 +519,14 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
         tasksService.deleteTaskList(token, listId)
       );
       setTaskLists(prev => prev.filter(l => l.id !== listId));
-      setTaskItems(prev => prev.filter(t => t.accountEmail !== list.accountEmail));
+      setTaskItems(prev => prev.filter(t => t.listId !== listId));
       toast.success(t.actionSuccess);
     } catch { toast.error(t.actionFailed); }
   }, [isDemo, taskLists, t]);
 
   const handleClearCompleted = useCallback(async (listId: string) => {
     if (isDemo) {
-      const list = taskLists.find(l => l.id === listId);
-      setTaskItems(prev => prev.filter(t => !(t.accountEmail === list?.accountEmail && t.status === "completed")));
+      setTaskItems(prev => prev.filter(t => !(t.listId === listId && t.status === "completed")));
       toast.success(t.actionSuccess);
       return;
     }
@@ -510,7 +536,7 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
       await authService.withFreshToken(list.accountEmail, token =>
         tasksService.clearCompleted(token, listId)
       );
-      setTaskItems(prev => prev.filter(t => !(t.accountEmail === list.accountEmail && t.status === "completed")));
+      setTaskItems(prev => prev.filter(t => !(t.listId === listId && t.status === "completed")));
       toast.success(t.actionSuccess);
     } catch { toast.error(t.actionFailed); }
   }, [isDemo, taskLists, t]);
@@ -568,6 +594,12 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
     setShowCompose(true);
   }, []);
 
+  // ── Navigate to specific email from AI chat ──
+  const handleNavigateToEmail = useCallback((emailId: string) => {
+    setTargetEmailId(emailId);
+    setActiveTab("mail");
+  }, []);
+
   // ── Logout ──
   const handleLogout = useCallback(() => {
     if (!isDemo) authService.logout();
@@ -577,8 +609,8 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
   // ── Workspace context for AI chat ──
   const workspaceContext = useCallback(() => {
     const emailSummaries = emails.slice(0, 20).map(e => {
-      const from = e.payload?.headers?.find((h: any) => h.name === "From")?.value || "";
-      const subject = e.payload?.headers?.find((h: any) => h.name === "Subject")?.value || "";
+      const from = e.payload?.headers?.find((h: any) => h.name?.toLowerCase() === "from")?.value || "";
+      const subject = e.payload?.headers?.find((h: any) => h.name?.toLowerCase() === "subject")?.value || "";
       const isUnread = e.labelIds?.includes("UNREAD");
       return `- [${isUnread ? "UNREAD" : "read"}] From: ${from} | Subject: ${subject} | Snippet: ${e.snippet || ""}`;
     }).join("\n");
@@ -612,6 +644,7 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
               id: `t${Date.now()}`, title: args.title, notes: args.notes,
               due: args.due ? `${args.due}T00:00:00.000Z` : undefined,
               status: "needsAction" as const,
+              listId: list.id,
               accountEmail: list.accountEmail, accountColor: list.accountColor,
             };
             setTaskItems(prev => [newTask, ...prev]);
@@ -622,7 +655,7 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
                 due: args.due ? `${args.due}T00:00:00.000Z` : undefined,
               })
             );
-            setTaskItems(prev => [{ ...created, accountEmail: list.accountEmail, accountColor: list.accountColor }, ...prev]);
+            setTaskItems(prev => [{ ...created, listId: list.id, accountEmail: list.accountEmail, accountColor: list.accountColor }, ...prev]);
           }
           return { success: true, message: `Task "${args.title}" created in "${list.title}"` };
         }
@@ -632,10 +665,10 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
           );
           if (!task) return { success: false, message: `No pending task matching "${args.title}" found` };
 
-          const list = taskLists.find(l => l.accountEmail === task.accountEmail);
-          if (!isDemo && list) {
+          const listForComplete = task.listId ? taskLists.find(l => l.id === task.listId) : taskLists.find(l => l.accountEmail === task.accountEmail);
+          if (!isDemo && listForComplete) {
             await authService.withFreshToken(task.accountEmail!, token =>
-              tasksService.updateTask(token, list.id, task.id, { status: "completed" })
+              tasksService.updateTask(token, listForComplete.id, task.id, { status: "completed" })
             );
           }
           setTaskItems(prev => prev.map(t => t.id === task.id ? { ...t, status: "completed" as const, completed: new Date().toISOString() } : t));
@@ -647,10 +680,10 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
           );
           if (!task) return { success: false, message: `No task matching "${args.title}" found` };
 
-          const list = taskLists.find(l => l.accountEmail === task.accountEmail);
-          if (!isDemo && list) {
+          const listForDelete = task.listId ? taskLists.find(l => l.id === task.listId) : taskLists.find(l => l.accountEmail === task.accountEmail);
+          if (!isDemo && listForDelete) {
             await authService.withFreshToken(task.accountEmail!, token =>
-              tasksService.deleteTask(token, list.id, task.id)
+              tasksService.deleteTask(token, listForDelete.id, task.id)
             );
           }
           setTaskItems(prev => prev.filter(t => t.id !== task.id));
@@ -706,7 +739,7 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
         }
         case "archive_email": {
           const email = emails.find((e: any) => {
-            const subject = e.payload?.headers?.find((h: any) => h.name === "Subject")?.value || "";
+            const subject = e.payload?.headers?.find((h: any) => h.name?.toLowerCase() === "subject")?.value || "";
             return subject.toLowerCase().includes(args.subject.toLowerCase());
           });
           if (!email) return { success: false, message: `No email matching "${args.subject}" found` };
@@ -721,7 +754,7 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
         }
         case "trash_email": {
           const email = emails.find((e: any) => {
-            const subject = e.payload?.headers?.find((h: any) => h.name === "Subject")?.value || "";
+            const subject = e.payload?.headers?.find((h: any) => h.name?.toLowerCase() === "subject")?.value || "";
             return subject.toLowerCase().includes(args.subject.toLowerCase());
           });
           if (!email) return { success: false, message: `No email matching "${args.subject}" found` };
@@ -847,10 +880,7 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
             {activeTab === "calendar" && (
               <button
                 onClick={() => {
-                  const now = new Date();
-                  const end = new Date(now.getTime() + 3600000);
-                  const fmt = (d: Date) => d.toISOString().slice(0, 16);
-                  handleCreateEvent({ summary: lang === "zh" ? "新事件" : "New Event", start: fmt(now), end: fmt(end) });
+                  calendarCreateRef.current?.();
                 }}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-[var(--blue)] hover:bg-[var(--blue-hover)] rounded-[4px] t-btn-transition"
               >
@@ -925,6 +955,7 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
               signature={settings.signature}
               sendFromAccount={sendFromAccount}
               accounts={profile?.accounts || []}
+              initialEmailId={targetEmailId}
               onSearch={handleSearch}
               onArchive={handleArchive}
               onTrash={handleTrash}
@@ -941,9 +972,11 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
               isDemo={isDemo}
               lang={lang}
               accounts={profile?.accounts || []}
+              sendFromAccount={sendFromAccount}
               onCreateEvent={handleCreateEvent}
               onUpdateEvent={handleUpdateEvent}
               onDeleteEvent={handleDeleteEvent}
+              onRegisterCreate={(fn) => { calendarCreateRef.current = fn; }}
             />
           )}
           {activeTab === "tasks" && (
@@ -970,8 +1003,10 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
               geminiApiKey={geminiApiKey}
               aiModel={settings.aiModel}
               workspaceContext={workspaceContext()}
+              emails={emails}
               executeAction={executeAction}
               onOpenSettings={() => setShowSettings(true)}
+              onNavigateToEmail={handleNavigateToEmail}
             />
           )}
         </main>

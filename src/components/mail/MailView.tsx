@@ -112,6 +112,7 @@ interface MailViewProps {
   signature: string;
   sendFromAccount: string;
   accounts: AccountSummary[];
+  initialEmailId?: string | null;
   onSearch: (q: string) => void;
   onArchive: (id: string, account: string) => void;
   onTrash: (id: string, account: string) => void;
@@ -124,6 +125,7 @@ interface MailViewProps {
 export default function MailView({
   emails, loading, isDemo, lang, hasMore,
   geminiApiKey, aiModel, signature, sendFromAccount, accounts,
+  initialEmailId,
   onSearch, onArchive, onTrash, onToggleRead, onReply, onLoadMore, onRefresh,
 }: MailViewProps) {
   const t = translations[lang];
@@ -135,6 +137,14 @@ export default function MailView({
   const [lightbox, setLightbox] = useState<{ src: string; type: string } | null>(null);
   const [attachAnalysis, setAttachAnalysis] = useState<Record<string, { loading: boolean; result: any }>>({});
   const listRef = useRef<HTMLDivElement>(null);
+
+  // Auto-select email when navigated from AI chat
+  useEffect(() => {
+    if (initialEmailId) {
+      const email = emails.find(e => e.id === initialEmailId);
+      if (email) setSelectedEmail(email);
+    }
+  }, [initialEmailId, emails]);
 
   // Keyboard navigation
   useEffect(() => {
