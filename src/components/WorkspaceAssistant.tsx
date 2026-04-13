@@ -3635,7 +3635,12 @@ function AIChatPanel({ messages, input, setInput, streaming, onSend, chatEndRef,
                       : "bg-gm-bg-container text-gm-text rounded-bl-md"
                   )}>
                     {msg.role === "assistant" ? (
-                      <RichMarkdown text={msg.text || (streaming && msg.text === "" ? t.aiThinking : "")} />
+                      <RichMarkdown
+                        text={msg.text || (streaming && msg.text === "" ? t.aiThinking : "")}
+                        emails={!streaming ? data.mail : undefined}
+                        lang={lang}
+                        onSelectEmail={onSelectEmail}
+                      />
                     ) : (
                       <span>{msg.text}</span>
                     )}
@@ -3661,44 +3666,7 @@ function AIChatPanel({ messages, input, setInput, streaming, onSend, chatEndRef,
                       </span>
                     </div>
                   )}
-                  {/* Referenced email chips + quick actions per message */}
-                  {msg.role === "assistant" && msg.text && !streaming && (() => {
-                    // Match emails mentioned in this AI response by subject or sender
-                    const referencedEmails = data.mail.filter((email: any) => {
-                      const subject = email.payload?.headers?.find((h: any) => h.name === "Subject")?.value || "";
-                      const from = email.payload?.headers?.find((h: any) => h.name === "From")?.value || "";
-                      const fromName = from.replace(/<[^>]+>/g, "").trim();
-                      if (!subject && !fromName) return false;
-                      const lower = msg.text.toLowerCase();
-                      return (subject.length > 3 && lower.includes(subject.toLowerCase()))
-                        || (fromName.length > 2 && lower.includes(fromName.toLowerCase()));
-                    }).slice(0, 5);
-
-                    if (referencedEmails.length === 0) return null;
-                    return (
-                      <div className="flex flex-col gap-1 mt-2 ml-0.5">
-                        {referencedEmails.map((email: any) => {
-                          const subject = email.payload?.headers?.find((h: any) => h.name === "Subject")?.value || "";
-                          const from = email.payload?.headers?.find((h: any) => h.name === "From")?.value || "";
-                          const fromName = from.replace(/<[^>]+>/g, "").trim();
-                          return (
-                            <button
-                              key={email.id}
-                              onClick={() => onSelectEmail?.(email.id)}
-                              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gm-border bg-gm-bg text-left hover:bg-gm-blue-bg hover:border-gm-blue group/email transition-colors w-fit max-w-full"
-                            >
-                              <Mail className="h-3.5 w-3.5 text-gm-text-secondary group-hover/email:text-gm-blue flex-shrink-0" />
-                              <div className="min-w-0 flex-1">
-                                <div className="text-[12px] font-medium text-gm-text truncate group-hover/email:text-gm-blue">{subject || (lang === "zh" ? "无主题" : "No Subject")}</div>
-                                {fromName && <div className="text-[10px] text-gm-text-secondary truncate">{fromName}</div>}
-                              </div>
-                              <ExternalLink className="h-3 w-3 text-gm-text-secondary opacity-0 group-hover/email:opacity-100 flex-shrink-0" />
-                            </button>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()}
+                  {/* Follow-up actions under the last assistant message */}
                   {/* Follow-up actions under the last assistant message */}
                   {msg.role === "assistant" && msg.text && !streaming && msgIdx === messages.length - 1 && (
                     <div className="flex gap-1.5 mt-2 flex-wrap">
@@ -3761,8 +3729,32 @@ function AIChatPanel({ messages, input, setInput, streaming, onSend, chatEndRef,
 }
 
 // Rich markdown renderer — supports ## headers, **bold**, tables, code blocks, bullets, ---
-function RichMarkdown({ text }: { text: string }) {
+function RichMarkdown({ text, emails, lang, onSelectEmail }: { text: string; emails?: any[]; lang?: string; onSelectEmail?: (id: string) => void }) {
   if (!text) return null;
+
+  // Build email lookup: for each line, find which email it references
+  const emailIndex = useMemo(() => {
+    if (!emails?.length) return [];
+    return emails.map((email: any) => {
+      const subject = email.payload?.headers?.find((h: any) => h.name === "Subject")?.value || "";
+      const from = email.payload?.headers?.find((h: any) => h.name === "From")?.value || "";
+      const fromName = from.replace(/<[^>]+>/g, "").trim();
+      return { id: email.id, subject, fromName };
+    }).filter(e => e.subject.length > 3 || e.fromName.length > 2);
+  }, [emails]);
+
+  // Find matched email for a line of text
+  const findEmailForLine = (line: string): { id: string; subject: string } | null => {
+    if (!emailIndex.length) return null;
+    const lower = line.toLowerCase();
+    for (const e of emailIndex) {
+      if ((e.subject.length > 3 && lower.includes(e.subject.toLowerCase()))
+        || (e.fromName.length > 2 && lower.includes(e.fromName.toLowerCase()))) {
+        return { id: e.id, subject: e.subject };
+      }
+    }
+    return null;
+  };
 
   const lines = text.split("\n");
   const elements: React.ReactNode[] = [];
@@ -3780,6 +3772,18 @@ function RichMarkdown({ text }: { text: string }) {
       return <span key={`${keyPrefix}-${j}`}>{part}</span>;
     });
   };
+
+  // Inline email link button
+  const renderEmailLink = (emailMatch: { id: string; subject: string }, key: string) => (
+    <button
+      key={key}
+      onClick={() => onSelectEmail?.(emailMatch.id)}
+      className="inline-flex items-center gap-1 ml-1 px-2 py-0.5 rounded-md text-[11px] text-gm-blue hover:bg-gm-blue-bg border border-gm-blue/20 hover:border-gm-blue transition-colors align-middle"
+    >
+      <ExternalLink className="h-2.5 w-2.5" />
+      {lang === "zh" ? "查看" : "View"}
+    </button>
+  );
 
   while (i < lines.length) {
     const line = lines[i];
@@ -3860,10 +3864,11 @@ function RichMarkdown({ text }: { text: string }) {
       const indent = trimmed.startsWith("- ") ? "pl-3" : "pl-3";
       const content = trimmed.startsWith("- ") ? trimmed.slice(2) : trimmed.replace(/^\d+\.\s/, "");
       const bullet = trimmed.startsWith("- ") ? "•" : trimmed.match(/^\d+/)?.[0] + ".";
+      const emailMatch = findEmailForLine(content);
       elements.push(
         <div key={i} className={cn("flex gap-2", indent)}>
           <span className="text-gm-text-secondary flex-shrink-0 w-4 text-right">{bullet}</span>
-          <span>{renderInline(content)}</span>
+          <span>{renderInline(content)}{emailMatch && renderEmailLink(emailMatch, `eml-${i}`)}</span>
         </div>
       );
       i++; continue;
@@ -3871,7 +3876,8 @@ function RichMarkdown({ text }: { text: string }) {
     // Empty line
     if (trimmed === "") { elements.push(<div key={i} className="h-1.5" />); i++; continue; }
     // Normal paragraph
-    elements.push(<div key={i}>{renderInline(trimmed)}</div>);
+    const paraEmailMatch = findEmailForLine(trimmed);
+    elements.push(<div key={i}>{renderInline(trimmed)}{paraEmailMatch && renderEmailLink(paraEmailMatch, `eml-${i}`)}</div>);
     i++;
   }
 
