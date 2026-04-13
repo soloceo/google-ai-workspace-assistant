@@ -116,6 +116,7 @@ function loadSettings() {
     if (saved) return JSON.parse(saved);
   } catch {}
   return { aiModel: "gemini-2.5-flash", signature: "", theme: "light" };
+  // Note: gemini-2.5-flash is still valid. Users can switch to 2.5-pro or 2.5-flash-lite in settings.
 }
 
 function applyTheme(theme: string) {

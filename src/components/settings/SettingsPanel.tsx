@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { X, Plus, Trash2, Sun, Moon, Monitor } from "lucide-react";
+import { X, Plus, Trash2, Sun, Moon, Monitor, ExternalLink, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { toast } from "sonner";
 import { translations, type Language } from "../../translations";
 import type { AccountSummary } from "../../types";
+import { GoogleGenAI } from "@google/genai";
 
 interface SettingsPanelProps {
   lang: Language;
@@ -26,6 +28,8 @@ export default function SettingsPanel({
   const [signature, setSignature] = useState(settings.signature);
   const [theme, setTheme] = useState(settings.theme);
   const [apiKey, setApiKey] = useState(geminiApiKey);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<"success" | "failed" | null>(null);
 
   const handleSave = () => {
     onSave({ aiModel, signature, theme });
@@ -38,6 +42,26 @@ export default function SettingsPanel({
     { value: "dark", icon: Moon, label: t.themeDark },
     { value: "system", icon: Monitor, label: t.themeSystem },
   ];
+
+  const handleTestConnection = async () => {
+    if (!apiKey.trim()) { toast.error(t.noApiKey); return; }
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const client = new GoogleGenAI({ apiKey: apiKey.trim() });
+      await client.models.generateContent({
+        model: aiModel || "gemini-2.5-flash",
+        contents: "Reply with OK",
+      });
+      setTestResult("success");
+      toast.success(t.connectionSuccess);
+    } catch {
+      setTestResult("failed");
+      toast.error(t.connectionFailed);
+    } finally {
+      setTesting(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -86,21 +110,55 @@ export default function SettingsPanel({
               className="w-full h-10 px-3 text-sm bg-[var(--bg-alt)] border-none rounded-[4px] text-[var(--text-body)] focus:outline-none focus:ring-2 focus:ring-[var(--blue)]"
             >
               <option value="gemini-2.5-flash">{t.geminiFlash}</option>
-              <option value="gemini-2.0-pro">{t.geminiPro}</option>
+              <option value="gemini-2.5-pro">{t.geminiPro}</option>
+              <option value="gemini-2.5-flash-lite">{t.geminiFlashLite}</option>
             </select>
           </section>
 
           {/* Gemini API Key */}
           <section>
-            <h3 className="text-sm font-medium text-[var(--text-primary)] mb-1">{t.geminiApiKey}</h3>
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-sm font-medium text-[var(--text-primary)]">{t.geminiApiKey}</h3>
+              <a
+                href="https://aistudio.google.com/app/apikey"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-xs font-medium text-[var(--blue)] hover:text-[var(--blue-hover)] t-transition"
+              >
+                {t.getApiKey}
+                <ExternalLink className="size-3" />
+              </a>
+            </div>
             <p className="text-xs text-[var(--text-tertiary)] mb-3">{t.geminiApiKeyDesc}</p>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={e => setApiKey(e.target.value)}
-              placeholder="AI..."
-              className="w-full h-10 px-3 text-sm bg-[var(--bg-alt)] border-none rounded-[4px] text-[var(--text-body)] placeholder:text-[var(--text-placeholder)] focus:outline-none focus:ring-2 focus:ring-[var(--blue)]"
-            />
+            <div className="flex gap-2">
+              <input
+                type="password"
+                value={apiKey}
+                onChange={e => { setApiKey(e.target.value); setTestResult(null); }}
+                placeholder="AI..."
+                className="flex-1 h-10 px-3 text-sm bg-[var(--bg-alt)] border-none rounded-[4px] text-[var(--text-body)] placeholder:text-[var(--text-placeholder)] focus:outline-none focus:ring-2 focus:ring-[var(--blue)]"
+              />
+              <button
+                onClick={handleTestConnection}
+                disabled={testing || !apiKey.trim()}
+                className={`flex items-center gap-1.5 px-3 h-10 text-sm font-medium rounded-[4px] t-btn-transition disabled:opacity-40 flex-shrink-0 ${
+                  testResult === "success"
+                    ? "bg-emerald-500/10 text-emerald-600"
+                    : testResult === "failed"
+                    ? "bg-red-500/10 text-red-600"
+                    : "bg-[var(--bg-alt)] text-[var(--text-body)] hover:bg-[var(--bg-hover)]"
+                }`}
+              >
+                {testing ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : testResult === "success" ? (
+                  <CheckCircle2 className="size-3.5" />
+                ) : testResult === "failed" ? (
+                  <XCircle className="size-3.5" />
+                ) : null}
+                {testing ? t.testingConnection : t.testConnection}
+              </button>
+            </div>
           </section>
 
           {/* Email Signature */}
