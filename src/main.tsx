@@ -14,6 +14,23 @@ class ErrorBoundary extends Component<EBProps, EBState> {
     return { hasError: true, error };
   }
 
+  componentDidMount() {
+    window.addEventListener('unhandledrejection', this.handleUnhandledRejection);
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener('unhandledrejection', this.handleUnhandledRejection);
+  }
+
+  handleUnhandledRejection = (e: PromiseRejectionEvent) => {
+    e.preventDefault();
+    console.error('Unhandled promise rejection:', e.reason);
+  };
+
+  handleReset = () => {
+    this.setState({ hasError: false, error: null });
+  };
+
   render() {
     const { hasError, error } = this.state as EBState;
     if (hasError) {
@@ -27,12 +44,20 @@ class ErrorBoundary extends Component<EBProps, EBState> {
             <p style={{ fontSize: 14, color: "#5C5E62", margin: "0 0 20px", lineHeight: 1.5 }}>
               {error?.message || "An unexpected error occurred."}
             </p>
-            <button
-              onClick={() => window.location.reload()}
-              style={{ padding: "10px 24px", fontSize: 14, fontWeight: 500, color: "#fff", background: "#3E6AE1", border: "none", borderRadius: 4, cursor: "pointer" }}
-            >
-              Reload
-            </button>
+            <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+              <button
+                onClick={this.handleReset}
+                style={{ padding: "10px 24px", fontSize: 14, fontWeight: 500, color: "#3E6AE1", background: "#EBF0FD", border: "none", borderRadius: 4, cursor: "pointer" }}
+              >
+                Try Again
+              </button>
+              <button
+                onClick={() => window.location.reload()}
+                style={{ padding: "10px 24px", fontSize: 14, fontWeight: 500, color: "#fff", background: "#3E6AE1", border: "none", borderRadius: 4, cursor: "pointer" }}
+              >
+                Reload
+              </button>
+            </div>
           </div>
         </div>
       );

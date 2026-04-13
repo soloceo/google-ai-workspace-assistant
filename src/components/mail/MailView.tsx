@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
   Search, Archive, Trash2, MailOpen, Mail as MailIcon, ArrowLeft,
   Paperclip, FileText, Image, File, Download, ExternalLink,
@@ -46,7 +46,10 @@ function decodeEmailBody(payload: any): { html: string; text: string } {
 function sanitizeHtml(html: string): string {
   // Use DOMParser for robust sanitization instead of fragile regex
   const doc = new DOMParser().parseFromString(html, "text/html");
-  const dangerousTags = ["script", "style", "iframe", "object", "embed", "form", "base", "meta", "link", "svg", "math"];
+  const dangerousTags = [
+    "script", "style", "iframe", "object", "embed", "form", "base",
+    "meta", "link", "svg", "math", "noscript", "template", "applet",
+  ];
   dangerousTags.forEach(tag => doc.querySelectorAll(tag).forEach(el => el.remove()));
   doc.querySelectorAll("*").forEach(el => {
     Array.from(el.attributes).forEach(attr => {
@@ -54,10 +57,10 @@ function sanitizeHtml(html: string): string {
       const value = attr.value.toLowerCase().trim();
       if (name.startsWith("on")) { el.removeAttribute(attr.name); return; }
       if (["href", "src", "action", "formaction", "xlink:href"].includes(name) &&
-          (/^(javascript|vbscript|data\s*:\s*text\/html)/i.test(value))) {
+          (/^(javascript|vbscript|data\s*:)/i.test(value))) {
         el.removeAttribute(attr.name);
       }
-      if (name === "style" && /expression\s*\(|url\s*\(/i.test(value)) {
+      if (name === "style" && /expression\s*\(|url\s*\(|@import|-moz-binding/i.test(value)) {
         el.removeAttribute(attr.name);
       }
     });
@@ -271,8 +274,8 @@ export default function MailView({
   const showDetail = isMobile && selectedEmail;
   const showList = !isMobile || !selectedEmail;
 
-  const emailBody = selectedEmail ? decodeEmailBody(selectedEmail.payload) : null;
-  const attachments = selectedEmail ? getAttachments(selectedEmail.payload) : [];
+  const emailBody = useMemo(() => selectedEmail ? decodeEmailBody(selectedEmail.payload) : null, [selectedEmail?.id]);
+  const attachments = useMemo(() => selectedEmail ? getAttachments(selectedEmail.payload) : [], [selectedEmail?.id]);
 
   return (
     <div className="h-full flex">

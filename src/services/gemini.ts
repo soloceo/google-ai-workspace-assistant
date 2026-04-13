@@ -64,6 +64,26 @@ function extractJSON(text: string): object | null {
   return null;
 }
 
+function extractJSONArray(text: string): any[] | null {
+  const start = text.indexOf('[');
+  if (start === -1) return null;
+
+  let depth = 0;
+  for (let i = start; i < text.length; i++) {
+    if (text[i] === '[') depth++;
+    else if (text[i] === ']') depth--;
+    if (depth === 0) {
+      try {
+        const result = JSON.parse(text.slice(start, i + 1));
+        return Array.isArray(result) ? result : null;
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
 // ── AI Functions ────────────────────────────────────────────
 
 /**
@@ -362,13 +382,9 @@ export async function analyzeAttachment(
     params.analysisType === 'contract' ||
     params.analysisType === 'invoice'
   ) {
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      try {
-        analysis = JSON.parse(jsonMatch[0]);
-      } catch {
-        analysis = text;
-      }
+    const parsed = extractJSON(text);
+    if (parsed) {
+      analysis = parsed;
     }
   }
 
@@ -447,19 +463,14 @@ ${JSON.stringify(uncached)}`;
   });
 
   const text = result.text || '';
-  const jsonMatch = text.match(/\[[\s\S]*\]/);
-
   let newClassifications: Array<{
     id: string;
     priority: string;
     category: string;
   }> = [];
-  if (jsonMatch) {
-    try {
-      newClassifications = JSON.parse(jsonMatch[0]);
-    } catch {
-      newClassifications = [];
-    }
+  const parsed = extractJSONArray(text);
+  if (parsed) {
+    newClassifications = parsed;
   }
 
   // Store new classifications in cache
@@ -665,17 +676,17 @@ Instructions:
     config: { tools: WORKSPACE_TOOLS },
   });
 
-  let functionCallPart: { name: string; args: Record<string, any> } | null = null;
+  const functionCalls: { name: string; args: Record<string, any> }[] = [];
   let textSoFar = '';
 
   for await (const chunk of stream) {
     const parts = chunk.candidates?.[0]?.content?.parts || [];
     for (const part of parts) {
       if (part.functionCall) {
-        functionCallPart = {
+        functionCalls.push({
           name: part.functionCall.name as string,
           args: part.functionCall.args as Record<string, any>,
-        };
+        });
       } else if (part.text) {
         textSoFar += part.text;
         yield part.text;
@@ -683,36 +694,38 @@ Instructions:
     }
   }
 
-  // If no function call, we're done (text was already yielded)
-  if (!functionCallPart) return;
+  // If no function calls, we're done (text was already yielded)
+  if (functionCalls.length === 0) return;
 
-  // ── Execute the tool call ──
-  const actionLabel = params.lang === 'zh'
-    ? `\n\n⚡ 正在执行: **${functionCallPart.name}**...\n`
-    : `\n\n⚡ Executing: **${functionCallPart.name}**...\n`;
-  yield actionLabel;
+  // ── Execute all tool calls ──
+  const modelParts: any[] = [];
+  const responseParts: any[] = [];
 
-  let actionResult: { success: boolean; message: string };
-  try {
-    actionResult = await executeAction(functionCallPart.name, functionCallPart.args);
-  } catch (e: any) {
-    actionResult = { success: false, message: e.message || 'Action failed' };
-  }
+  for (const call of functionCalls) {
+    const actionLabel = params.lang === 'zh'
+      ? `\n\n⚡ 正在执行: **${call.name}**...\n`
+      : `\n\n⚡ Executing: **${call.name}**...\n`;
+    yield actionLabel;
 
-  // ── Send function result back for natural language confirmation ──
-  contents.push({
-    role: 'model',
-    parts: [{ functionCall: { name: functionCallPart.name, args: functionCallPart.args } }],
-  });
-  contents.push({
-    role: 'user',
-    parts: [{
+    let actionResult: { success: boolean; message: string };
+    try {
+      actionResult = await executeAction(call.name, call.args);
+    } catch (e: any) {
+      actionResult = { success: false, message: e.message || 'Action failed' };
+    }
+
+    modelParts.push({ functionCall: { name: call.name, args: call.args } });
+    responseParts.push({
       functionResponse: {
-        name: functionCallPart.name,
+        name: call.name,
         response: actionResult,
       },
-    }],
-  });
+    });
+  }
+
+  // ── Send all function results back for natural language confirmation ──
+  contents.push({ role: 'model', parts: modelParts });
+  contents.push({ role: 'user', parts: responseParts });
 
   const followUp = await client.models.generateContentStream({
     model: params.model || 'gemini-2.5-flash',

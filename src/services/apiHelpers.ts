@@ -28,20 +28,23 @@ export async function googleFetch<T = any>(
   // Timeout via AbortController
   const controller = new AbortController();
   const existingSignal = options.signal;
+  const onExternalAbort = () => controller.abort(existingSignal?.reason);
   if (existingSignal) {
-    existingSignal.addEventListener('abort', () => controller.abort(existingSignal.reason));
+    existingSignal.addEventListener('abort', onExternalAbort);
   }
-  const timeoutId = setTimeout(() => controller.abort('Request timeout'), timeoutMs);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   let response: Response;
   try {
     response = await fetch(url, { ...options, headers, signal: controller.signal });
   } catch (e: any) {
-    clearTimeout(timeoutId);
-    if (e.name === 'AbortError') throw new Error(`Request timeout after ${timeoutMs}ms`);
+    if (e.name === 'AbortError' && !existingSignal?.aborted) {
+      throw new Error(`Request timeout after ${timeoutMs}ms`);
+    }
     throw e;
   } finally {
     clearTimeout(timeoutId);
+    if (existingSignal) existingSignal.removeEventListener('abort', onExternalAbort);
   }
 
   if (response.status === 401) {
@@ -63,7 +66,11 @@ export async function googleFetch<T = any>(
     return undefined as unknown as T;
   }
 
-  return response.json();
+  try {
+    return await response.json();
+  } catch {
+    throw new Error(`Invalid JSON response from ${url}`);
+  }
 }
 
 /**
