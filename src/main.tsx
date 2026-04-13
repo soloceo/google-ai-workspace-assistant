@@ -8,17 +8,15 @@ interface EBProps { children: ReactNode }
 interface EBState { hasError: boolean; error: Error | null }
 
 class ErrorBoundary extends Component<EBProps, EBState> {
-  constructor(props: EBProps) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
+  state: EBState = { hasError: false, error: null };
 
   static getDerivedStateFromError(error: Error): EBState {
     return { hasError: true, error };
   }
 
   render() {
-    if (this.state.hasError) {
+    const { hasError, error } = this.state as EBState;
+    if (hasError) {
       return (
         <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#faf9f7", fontFamily: "system-ui, sans-serif" }}>
           <div style={{ textAlign: "center", maxWidth: 420, padding: 32 }}>
@@ -27,7 +25,7 @@ class ErrorBoundary extends Component<EBProps, EBState> {
             </div>
             <h1 style={{ fontSize: 20, fontWeight: 500, color: "#1f1f1f", margin: "0 0 8px" }}>Something went wrong</h1>
             <p style={{ fontSize: 14, color: "#5f6368", margin: "0 0 24px", lineHeight: 1.5 }}>
-              {this.state.error?.message || "An unexpected error occurred."}
+              {error?.message || "An unexpected error occurred."}
             </p>
             <button
               onClick={() => window.location.reload()}
@@ -39,7 +37,7 @@ class ErrorBoundary extends Component<EBProps, EBState> {
         </div>
       );
     }
-    return this.props.children;
+    return (this as unknown as { props: EBProps }).props.children;
   }
 }
 

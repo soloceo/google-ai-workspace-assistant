@@ -223,6 +223,13 @@ function decodeEmailBody(payload: any): { html: string; text: string } {
   return { html: bodyHtml, text: bodyText };
 }
 
+// Decode HTML entities in text (e.g. &amp; → &, &#39; → ')
+const decodeHtmlEntities = (text: string): string => {
+  const ta = document.createElement("textarea");
+  ta.innerHTML = text;
+  return ta.value;
+};
+
 // Sanitize HTML — strip scripts, styles, event handlers, and dangerous elements
 const sanitizeHtml = (html: string): string => {
   // Strip all script/style/event handlers, rely on iframe sandbox for isolation
@@ -237,25 +244,24 @@ const sanitizeHtml = (html: string): string => {
     .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
     .replace(/<object[\s\S]*?<\/object>/gi, "")
     .replace(/<embed[\s\S]*?>/gi, "")
-    .replace(/<form[\s\S]*?<\/form>/gi, "");
+    .replace(/<form[\s\S]*?<\/form>/gi, "")
+    .replace(/<base[\s\S]*?>/gi, "")
+    .replace(/<meta[\s\S]*?>/gi, "")
+    .replace(/<link[\s\S]*?>/gi, "");
 };
 
-// @ts-ignore — React types not installed; runtime class works fine
 class ErrorBoundary extends Component<
   { children: React.ReactNode },
   { hasError: boolean }
 > {
-  constructor(props: { children: React.ReactNode }) {
-    super(props);
-    // @ts-ignore
-    this.state = { hasError: false };
-  }
+  state = { hasError: false };
+
   static getDerivedStateFromError() {
     return { hasError: true };
   }
   render() {
-    // @ts-ignore
-    if (this.state.hasError) {
+    const { hasError } = this.state as { hasError: boolean };
+    if (hasError) {
       const uiLang = navigator.language.startsWith("zh") ? "zh" : "en";
       const tt = translations[uiLang];
       return (
@@ -264,8 +270,7 @@ class ErrorBoundary extends Component<
             <p className="text-xl text-gm-text-primary">{tt.somethingWentWrong}</p>
             <button
               onClick={() => {
-                // @ts-ignore
-                this.setState({ hasError: false });
+                (this as any).setState({ hasError: false });
                 window.location.reload();
               }}
               className="px-4 py-2 bg-[#1a73e8] text-white rounded-lg"
@@ -276,8 +281,7 @@ class ErrorBoundary extends Component<
         </div>
       );
     }
-    // @ts-ignore
-    return this.props.children;
+    return (this as unknown as { props: { children: React.ReactNode } }).props.children;
   }
 }
 
@@ -286,18 +290,22 @@ export default function WorkspaceAssistant({
   lang,
   onLangChange,
   onLogout: onLogoutProp,
+  updateAvailable,
+  onCheckUpdate,
 }: {
   isDemo?: boolean;
   lang: Language;
   onLangChange: (l: Language) => void;
   onLogout?: () => void;
+  updateAvailable?: boolean;
+  onCheckUpdate?: () => Promise<void>;
 }) {
   const [activeTab, setActiveTab] = useState<AppTab>("ai");
   const [data, setData] = useState<{
     mail: any[];
     calendar: any[];
   }>({ mail: [], calendar: [] });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [aiInsights, setAiInsights] = useState<{ summary: string; action: string } | null>(null);
   const [processing, setProcessing] = useState(false);
@@ -325,11 +333,13 @@ export default function WorkspaceAssistant({
 
   // Attachment lightbox state — revoke blob URL on close to prevent memory leak
   const [lightbox, setLightboxRaw] = useState<{ src: string; type: "image" | "pdf" } | null>(null);
+  const lightboxRef = useRef<{ src: string; type: "image" | "pdf" } | null>(null);
   const setLightbox = useCallback((value: { src: string; type: "image" | "pdf" } | null) => {
     setLightboxRaw((prev) => {
       if (prev?.src && prev.src !== value?.src) {
         try { URL.revokeObjectURL(prev.src); } catch {}
       }
+      lightboxRef.current = value;
       return value;
     });
   }, []);
@@ -372,6 +382,8 @@ export default function WorkspaceAssistant({
 
   // Pagination — multi-account: map of accountEmail → pageToken
   const [pageTokens, setPageTokens] = useState<{ mail: Record<string, string | null>; calendar: Record<string, string | null> }>({ mail: {}, calendar: {} });
+  const pageTokensRef = useRef(pageTokens);
+  pageTokensRef.current = pageTokens;
   const [loadingMore, setLoadingMore] = useState(false);
 
   // Infinite scroll sentinel ref
@@ -402,12 +414,16 @@ export default function WorkspaceAssistant({
     chatMessagesRef.current = chatMessages;
   }, [chatMessages]);
 
-  // Cleanup demo typing interval on unmount
+  // Cleanup on unmount: demo typing, chat streaming, blob URLs
   useEffect(() => {
     return () => {
       if (demoTypingRef.current) {
         clearInterval(demoTypingRef.current);
         demoTypingRef.current = null;
+      }
+      chatAbortRef.current?.abort();
+      if (lightboxRef.current?.src) {
+        try { URL.revokeObjectURL(lightboxRef.current.src); } catch {}
       }
     };
   }, []);
@@ -449,6 +465,9 @@ export default function WorkspaceAssistant({
 
   // Demo typing interval ref (Fix 4: clear on unmount)
   const demoTypingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Chat streaming abort controller
+  const chatAbortRef = useRef<AbortController | null>(null);
 
   // Track classified email IDs to avoid re-classifying on every data.mail ref change
   const classifiedEmailIdsRef = useRef<Set<string>>(new Set());
@@ -554,20 +573,6 @@ export default function WorkspaceAssistant({
     }
   };
 
-  // Load data on tab change
-  useEffect(() => {
-    if (activeTab !== "ai") loadData();
-    setSelectedItem(null);
-    setSelectedIds(new Set());
-    setBatchMode(false);
-    return () => abortRef.current?.abort();
-  }, [activeTab, isDemo, loadData]);
-
-  // Reload when label changes (Feature 9)
-  useEffect(() => {
-    if (activeTab === "mail") loadData();
-  }, [activeLabel, activeTab, loadData]);
-
   // Helper: check if any account still has more pages (Feature 12)
   const hasMorePages = useCallback((tab: "mail" | "calendar") => {
     const tokens = pageTokens[tab];
@@ -621,7 +626,7 @@ export default function WorkspaceAssistant({
         const tabKey = activeTab as "mail" | "calendar";
 
         if (activeTab === "mail") {
-          const accountTokens = pageTokens[tabKey];
+          const accountTokens = pageTokensRef.current[tabKey];
           const passTokens = append && Object.keys(accountTokens).length > 0 && Object.values(accountTokens).some((v) => v != null)
             ? accountTokens
             : undefined;
@@ -702,15 +707,29 @@ export default function WorkspaceAssistant({
         setLoadingMore(false);
       }
     },
-    [activeTab, isDemo, pageTokens, searchQuery, accountFilter, activeLabel, t]
+    // pageTokens read via ref to break the infinite loop (loadData sets pageTokens)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeTab, isDemo, searchQuery, accountFilter, activeLabel, t]
   );
 
-  // Reload data when account filter changes
+  // Clear selection on tab change (must NOT depend on loadData)
+  useEffect(() => {
+    setSelectedItem(null);
+    setSelectedIds(new Set());
+    setBatchMode(false);
+  }, [activeTab]);
+
+  // Ref so the search debounce always calls the latest loadData
+  const loadDataRef = useRef(loadData);
+  loadDataRef.current = loadData;
+
+  // Single consolidated effect: load data on tab/label/filter/account changes
   useEffect(() => {
     if (activeTab !== "ai") loadData();
-  }, [accountFilter, activeTab, loadData]);
+    return () => abortRef.current?.abort();
+  }, [activeTab, isDemo, loadData]);
 
-  // Server-side search with debounce (Feature 11 enhancement)
+  // Server-side search with debounce
   useEffect(() => {
     if (!searchQuery.trim()) {
       setIsSearching(false);
@@ -718,11 +737,11 @@ export default function WorkspaceAssistant({
     }
     setIsSearching(true);
     const timer = setTimeout(() => {
-      loadData();
+      loadDataRef.current();
       setIsSearching(false);
     }, 500);
     return () => clearTimeout(timer);
-  }, [searchQuery, loadData]);
+  }, [searchQuery]);
 
   // IntersectionObserver for infinite scroll (Feature 12)
   useEffect(() => {
@@ -814,7 +833,9 @@ export default function WorkspaceAssistant({
     const apiKey = gemini.getGeminiApiKey();
     if (!apiKey) return; // No API key configured
 
+    let cancelled = false;
     gemini.classifyEmails(apiKey, { emails: emailSummaries, lang }).then((res) => {
+      if (cancelled) return;
       const classificationsList = res.classifications || [];
       if (Array.isArray(classificationsList)) {
         const classMap: Record<string, {priority: string, category: string}> = {};
@@ -826,7 +847,8 @@ export default function WorkspaceAssistant({
         try { localStorage.setItem("ai_email_classifications", JSON.stringify(merged)); } catch {}
       }
     }).catch(() => {});
-  }, [activeTab, mailIdKey, isDemo]);
+    return () => { cancelled = true; };
+  }, [activeTab, mailIdKey, isDemo, lang]);
 
   // AI processing — server-side
   const processWithAI = async (item: any) => {
@@ -1001,7 +1023,7 @@ export default function WorkspaceAssistant({
         return;
       }
       if (activeTab === "calendar") {
-        if (!composeSubject.trim() || !composeStart || !composeEnd) return;
+        if (!composeSubject.trim() || !composeStart || !composeEnd) { setSendingReply(false); return; }
         const token = sendFromAccount ? authService.getValidToken(sendFromAccount) : authService.getFirstValidToken();
         if (!token) { toast.error(t.noValidToken); setSendingReply(false); return; }
         await calendarService.createEvent(token, {
@@ -1011,7 +1033,7 @@ export default function WorkspaceAssistant({
           end: new Date(composeEnd).toISOString(),
         });
       } else {
-        if (!composeTo.trim() || !composeBody.trim()) return;
+        if (!composeTo.trim() || !composeBody.trim()) { setSendingReply(false); return; }
         const attachments = composeAttachments.length > 0
           ? await Promise.all(composeAttachments.map(fileToBase64))
           : undefined;
@@ -1054,13 +1076,15 @@ export default function WorkspaceAssistant({
         return;
       }
 
+      if (!selectedItem) { setSendingReply(false); return; }
       const to = getHeader(selectedItem, "From");
       let subject = getHeader(selectedItem, "Subject");
       if (!/^re:/i.test(subject)) subject = `Re: ${subject}`;
       const msgId = getHeader(selectedItem, "Message-ID") || getHeader(selectedItem, "Message-Id");
       const date = getHeader(selectedItem, "Date");
 
-      const quote = `\n\nOn ${date}, ${to} wrote:\n> ${selectedItem?.snippet}`;
+      const snippet = selectedItem.snippet ? decodeHtmlEntities(selectedItem.snippet) : "";
+      const quote = `\n\nOn ${date}, ${to} wrote:\n> ${snippet}`;
 
       const replyAtts = replyAttachments.length > 0
         ? await Promise.all(replyAttachments.map(fileToBase64))
@@ -1559,6 +1583,9 @@ export default function WorkspaceAssistant({
     }
 
     // Real mode — stream from Gemini via service layer
+    chatAbortRef.current?.abort();
+    const chatController = new AbortController();
+    chatAbortRef.current = chatController;
     try {
       const apiKey = gemini.getGeminiApiKey();
       if (!apiKey) {
@@ -1575,17 +1602,19 @@ export default function WorkspaceAssistant({
       const stream = gemini.chatStream(apiKey, { message: text, history, context, lang, model: settings.aiModel });
       let fullText = "";
       for await (const chunk of stream) {
+        if (chatController.signal.aborted) break;
         fullText += chunk;
         setChatMessages((prev) =>
           prev.map((m) => m.id === assistantId ? { ...m, text: fullText } : m)
         );
       }
     } catch (error: any) {
+      if (chatController.signal.aborted) return;
       setChatMessages((prev) =>
         prev.map((m) => m.id === assistantId ? { ...m, text: `⚠️ ${t.aiChatError}: ${error.message}` } : m)
       );
     } finally {
-      setChatStreaming(false);
+      if (!chatController.signal.aborted) setChatStreaming(false);
     }
   }, [chatInput, chatStreaming, isDemo, data, lang, settings.aiModel, buildChatContext, t]);
 
@@ -1626,7 +1655,7 @@ export default function WorkspaceAssistant({
       });
     }
     return items;
-  }, [data, activeTab, isDemo, accountFilter, searchQuery, activeLabel, profile]);
+  }, [data, activeTab, isDemo, accountFilter, searchQuery, activeLabel]);
 
   // Calendar date-filtered events
   const calendarFilteredEvents = useMemo(() => {
@@ -1687,7 +1716,7 @@ export default function WorkspaceAssistant({
           }
           break;
         case "c":
-          if (!selectedItem) {
+          if (!selectedItem && activeTab !== "ai") {
             handleNew();
             e.preventDefault();
           }
@@ -2285,6 +2314,8 @@ export default function WorkspaceAssistant({
           isDemo={isDemo}
           geminiApiKey={geminiApiKey}
           onGeminiApiKeyChange={(key: string) => { setGeminiApiKeyState(key); gemini.setGeminiApiKey(key); }}
+          updateAvailable={updateAvailable}
+          onCheckUpdate={onCheckUpdate}
         />
       )}
       </AnimatePresence>
@@ -2452,7 +2483,7 @@ function NavIcon({ icon: Icon, active, onClick, label, badge, isMobile }: { icon
   );
 }
 
-function SettingsPanel({ settings, setSettings, onSave, onClose, lang, t, accounts, onAddAccount, onRemoveAccount, isDemo, geminiApiKey, onGeminiApiKeyChange }: any) {
+function SettingsPanel({ settings, setSettings, onSave, onClose, lang, t, accounts, onAddAccount, onRemoveAccount, isDemo, geminiApiKey, onGeminiApiKeyChange, updateAvailable, onCheckUpdate }: any) {
   const [showApiKey, setShowApiKey] = useState(false);
   const [apiKeyStatus, setApiKeyStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [apiKeyError, setApiKeyError] = useState('');
@@ -2664,6 +2695,9 @@ function SettingsPanel({ settings, setSettings, onSave, onClose, lang, t, accoun
               onChange={(e) => setSettings({ ...settings, signature: e.target.value })}
             />
           </div>
+
+          {/* Version & Update */}
+          <UpdateSection lang={lang} updateAvailable={updateAvailable} onCheckUpdate={onCheckUpdate} />
         </div>
 
         {/* Footer */}
@@ -2672,6 +2706,69 @@ function SettingsPanel({ settings, setSettings, onSave, onClose, lang, t, accoun
           <Button onClick={() => { onGeminiApiKeyChange?.(localApiKey); onSave(); }} className="bg-[#1a73e8] hover:bg-[#1557b0] text-white px-6">{t.saveSettings}</Button>
         </div>
       </motion.div>
+    </div>
+  );
+}
+
+function UpdateSection({ lang, updateAvailable, onCheckUpdate }: { lang: string; updateAvailable?: boolean; onCheckUpdate?: () => Promise<void> }) {
+  const [checking, setChecking] = useState(false);
+  const [checked, setChecked] = useState(false);
+
+  const handleCheck = async () => {
+    setChecking(true);
+    setChecked(false);
+    try {
+      await onCheckUpdate?.();
+    } finally {
+      setChecking(false);
+      setChecked(true);
+      setTimeout(() => setChecked(false), 3000);
+    }
+  };
+
+  return (
+    <div className="space-y-3 pt-2 border-t border-gm-border">
+      <label className="text-sm font-medium text-gm-text-primary">
+        {lang === "zh" ? "版本更新" : "App Updates"}
+      </label>
+      {updateAvailable ? (
+        <div className="flex items-center gap-3 p-3 bg-[#1a73e8]/10 border border-[#1a73e8]/20 rounded-xl">
+          <div className="w-2 h-2 rounded-full bg-[#1a73e8] animate-pulse flex-shrink-0" />
+          <span className="text-sm text-gm-text-primary flex-1">
+            {lang === "zh" ? "发现新版本" : "New version available"}
+          </span>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-1.5 bg-[#1a73e8] text-white rounded-lg text-xs font-medium hover:bg-[#1557b0] transition-colors"
+          >
+            {lang === "zh" ? "立即更新" : "Update Now"}
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleCheck}
+            disabled={checking}
+            className="gap-2 rounded-lg border-gm-border-strong"
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", checking && "animate-spin")} />
+            {checking
+              ? (lang === "zh" ? "检查中..." : "Checking...")
+              : (lang === "zh" ? "检查更新" : "Check for Updates")}
+          </Button>
+          {checked && !updateAvailable && (
+            <span className="text-xs text-green-600 flex items-center gap-1">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              {lang === "zh" ? "已是最新版本" : "Up to date"}
+            </span>
+          )}
+        </div>
+      )}
+      <p className="text-[11px] text-gm-text-secondary opacity-60">
+        {lang === "zh" ? "应用会每周自动检查更新" : "App checks for updates weekly"}
+      </p>
     </div>
   );
 }
@@ -2973,6 +3070,19 @@ function MailContent(props: any) {
   const body = decodeEmailBody(item?.payload);
   const replyFileInputRef = useRef<HTMLInputElement>(null);
   const [analyzeDropdown, setAnalyzeDropdown] = useState<string | null>(null);
+  const analyzeDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close analyze dropdown on outside click
+  useEffect(() => {
+    if (!analyzeDropdown) return;
+    const handler = (e: MouseEvent) => {
+      if (analyzeDropdownRef.current && !analyzeDropdownRef.current.contains(e.target as Node)) {
+        setAnalyzeDropdown(null);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [analyzeDropdown]);
 
   const handleReplyFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -3109,7 +3219,7 @@ function MailContent(props: any) {
 
                       {/* AI Analyze button (Feature 14) */}
                       {isAnalyzableType(att.mimeType) && att.attachmentId && (
-                        <div className="relative flex-shrink-0">
+                        <div ref={isDropdownOpen ? analyzeDropdownRef : undefined} className="relative flex-shrink-0">
                           <button
                             onClick={() => setAnalyzeDropdown(isDropdownOpen ? null : analysisKey)}
                             disabled={analysis?.loading}
@@ -3301,10 +3411,12 @@ function CalendarEditor({ event, onSave, onCancel, lang, t, isDemo }: { event: C
   const toLocalDatetime = (dt?: string) => {
     if (!dt) return "";
     const d = new Date(dt);
+    if (isNaN(d.getTime())) return "";
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}T${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   };
-  const [start, setStart] = useState(toLocalDatetime(event.start?.dateTime));
-  const [end, setEnd] = useState(toLocalDatetime(event.end?.dateTime));
+  // Support all-day events that only have date (no dateTime)
+  const [start, setStart] = useState(toLocalDatetime(event.start?.dateTime || (event.start?.date ? event.start.date + "T00:00" : undefined)));
+  const [end, setEnd] = useState(toLocalDatetime(event.end?.dateTime || (event.end?.date ? event.end.date + "T00:00" : undefined)));
   const [description, setDescription] = useState(event.description || "");
 
   return (
@@ -3763,7 +3875,7 @@ function RichMarkdown({ text }: { text: string }) {
 function ConfirmDialog({ message, onConfirm, onCancel, t }: { message: string; onConfirm: () => void; onCancel: () => void; t: any }) {
   return (
     <motion.div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      className="fixed inset-0 z-[710] flex items-center justify-center bg-black/40"
       onClick={onCancel}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -3818,7 +3930,7 @@ function AttachmentLightbox({ src, type, onClose, t }: { src: string; type: "ima
         {type === "image" ? (
           <img src={src} alt="Preview" className="max-w-full max-h-[90vh] rounded-lg shadow-2xl" />
         ) : (
-          <iframe src={src} title="PDF Preview" className="w-[80vw] h-[85vh] rounded-lg bg-white shadow-2xl" />
+          <iframe src={src} title="PDF Preview" sandbox="" className="w-[80vw] h-[85vh] rounded-lg bg-white shadow-2xl" />
         )}
       </div>
     </motion.div>

@@ -3,21 +3,52 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import WorkspaceAssistant from "./components/WorkspaceAssistant";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ShieldCheck, Languages, Mail, Calendar, Zap } from "lucide-react";
+import { ShieldCheck, Languages, Mail, Calendar, Zap, RefreshCw } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { translations, Language } from "./translations";
 import { loadGIS, login, isAnyAccountValid } from "./services/auth";
 import { GOOGLE_CLIENT_ID } from "./config";
+
+const CURRENT_HASH = typeof __BUILD_HASH__ !== "undefined" ? __BUILD_HASH__ : "";
+const CHECK_INTERVAL = 7 * 24 * 60 * 60 * 1000; // 1 week
+
+function useUpdateCheck() {
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+
+  const checkForUpdate = useCallback(async () => {
+    if (!CURRENT_HASH) return; // dev mode — no hash
+    try {
+      const res = await fetch(`./version.json?_=${Date.now()}`, { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.hash && data.hash !== CURRENT_HASH) {
+        setUpdateAvailable(true);
+      }
+    } catch {
+      // network error — ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    // First check after 30s, then every 5 minutes
+    const initialTimer = setTimeout(checkForUpdate, 30_000);
+    const interval = setInterval(checkForUpdate, CHECK_INTERVAL);
+    return () => { clearTimeout(initialTimer); clearInterval(interval); };
+  }, [checkForUpdate]);
+
+  return { updateAvailable, checkForUpdate };
+}
 
 export default function App() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [isDemo, setIsDemo] = useState(false);
   const [lang, setLang] = useState<Language>("zh");
   const [gisReady, setGisReady] = useState(false);
+  const { updateAvailable, checkForUpdate } = useUpdateCheck();
 
   const t = translations[lang];
 
@@ -77,6 +108,7 @@ export default function App() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gm-bg-dim p-4">
         <Toaster />
+        {updateAvailable && <UpdateBanner lang={lang} />}
         <div className="absolute top-6 right-6">
           <Button variant="ghost" onClick={() => setLang((p) => (p === "en" ? "zh" : "en"))} className="gap-2 text-gm-text-secondary">
             <Languages className="h-4 w-4" />
@@ -134,12 +166,42 @@ export default function App() {
   return (
     <>
       <Toaster />
+      {updateAvailable && <UpdateBanner lang={lang} />}
       <WorkspaceAssistant
         isDemo={isDemo}
         lang={lang}
         onLangChange={setLang}
         onLogout={() => setAuthenticated(false)}
+        updateAvailable={updateAvailable}
+        onCheckUpdate={checkForUpdate}
       />
     </>
+  );
+}
+
+function UpdateBanner({ lang }: { lang: Language }) {
+  const [dismissed, setDismissed] = useState(false);
+  if (dismissed) return null;
+
+  return (
+    <div className="fixed top-0 left-0 right-0 z-[900] bg-[#1a73e8] text-white px-4 py-2.5 flex items-center justify-center gap-3 shadow-lg text-sm">
+      <RefreshCw className="h-4 w-4 flex-shrink-0" />
+      <span>
+        {lang === "zh" ? "新版本可用" : "New version available"}
+      </span>
+      <button
+        onClick={() => window.location.reload()}
+        className="px-3 py-1 bg-white text-[#1a73e8] rounded-full text-xs font-medium hover:bg-white/90 transition-colors"
+      >
+        {lang === "zh" ? "立即更新" : "Update Now"}
+      </button>
+      <button
+        onClick={() => setDismissed(true)}
+        className="ml-1 p-1 rounded-full hover:bg-white/20 transition-colors"
+        aria-label="Dismiss"
+      >
+        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
   );
 }
