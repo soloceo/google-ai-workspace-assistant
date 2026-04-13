@@ -1,152 +1,214 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
+/* ── Tesla Design System Tokens ─────────────────────────────── */
+
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-serif: "Playfair Display", serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
-  
-  --radius-lg: var(--radius);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-sm: calc(var(--radius) - 4px);
+  --font-sans: "Inter", -apple-system, Arial, sans-serif;
 
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --radius-lg: 4px;
+  --radius-md: 4px;
+  --radius-sm: 2px;
 
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
+  /* Tesla palette — light */
+  --color-background: var(--bg);
+  --color-foreground: var(--text-primary);
 
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--blue);
+  --color-primary-foreground: #ffffff;
 
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--bg-alt);
+  --color-secondary-foreground: var(--text-primary);
 
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--bg-alt);
+  --color-muted-foreground: var(--text-tertiary);
 
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--bg-alt);
+  --color-accent-foreground: var(--text-primary);
 
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: #dc2626;
+  --color-destructive-foreground: #ffffff;
 
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border-light);
+  --color-input: var(--border-light);
+  --color-ring: var(--blue);
 
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
+  --color-card: var(--bg);
+  --color-card-foreground: var(--text-primary);
 
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-
-  /* Google Material Design color tokens */
-  --color-gm-bg: var(--gm-bg);
-  --color-gm-bg-dim: var(--gm-bg-dim);
-  --color-gm-bg-container: var(--gm-bg-container);
-  --color-gm-text: var(--gm-text);
-  --color-gm-text-secondary: var(--gm-text-secondary);
-  --color-gm-text-primary: var(--gm-text-primary);
-  --color-gm-blue: var(--gm-blue);
-  --color-gm-blue-bg: var(--gm-blue-bg);
-  --color-gm-blue-bg-faint: var(--gm-blue-bg-faint);
-  --color-gm-blue-border-faint: var(--gm-blue-border-faint);
-  --color-gm-border: var(--gm-border);
-  --color-gm-border-strong: var(--gm-border-strong);
+  --color-popover: var(--bg);
+  --color-popover-foreground: var(--text-primary);
 }
 
-@layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
-    --radius: 0.5rem;
+:root {
+  /* Tesla Colors */
+  --blue: #3E6AE1;
+  --blue-hover: #3560d4;
+  --blue-light: rgba(62, 106, 225, 0.08);
+  --blue-border: rgba(62, 106, 225, 0.2);
 
-    --gm-bg: #ffffff;
-    --gm-bg-dim: #f8f9fa;
-    --gm-bg-container: #f1f3f4;
-    --gm-text: #3c4043;
-    --gm-text-secondary: #5f6368;
-    --gm-text-primary: #202124;
-    --gm-blue: #1a73e8;
-    --gm-blue-bg: #e8f0fe;
-    --gm-blue-bg-faint: rgba(232, 240, 254, 0.3);
-    --gm-blue-border-faint: rgba(26, 115, 232, 0.2);
-    --gm-border: #e0e0e0;
-    --gm-border-strong: #dadce0;
-  }
+  --bg: #FFFFFF;
+  --bg-alt: #F4F4F4;
+  --bg-hover: #F8F8F8;
+  --bg-active: #F0F0F0;
 
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
+  --text-primary: #171A20;
+  --text-body: #393C41;
+  --text-tertiary: #5C5E62;
+  --text-placeholder: #8E8E8E;
 
-    --gm-bg: #1f1f1f;
-    --gm-bg-dim: #2d2d2d;
-    --gm-bg-container: #3c4043;
-    --gm-text: #e8eaed;
-    --gm-text-secondary: #9aa0a6;
-    --gm-text-primary: #e8eaed;
-    --gm-blue: #8ab4f8;
-    --gm-blue-bg: #004a77;
-    --gm-blue-bg-faint: rgba(0, 74, 119, 0.3);
-    --gm-blue-border-faint: rgba(138, 180, 248, 0.2);
-    --gm-border: #5f6368;
-    --gm-border-strong: #5f6368;
-  }
+  --border-light: #EEEEEE;
+  --border-medium: #D0D1D2;
+
+  --frost: rgba(255, 255, 255, 0.85);
+
+  /* Semantic */
+  --success: #16a34a;
+  --warning: #d97706;
+  --danger: #dc2626;
+
+  /* Account colors */
+  --account-1: #ea4335;
+  --account-2: #4285f4;
+  --account-3: #34a853;
+  --account-4: #fbbc04;
+  --account-5: #9334e6;
+  --account-6: #ff6d01;
 }
+
+.dark {
+  --blue: #6B8EE8;
+  --blue-hover: #7D9CEE;
+  --blue-light: rgba(107, 142, 232, 0.12);
+  --blue-border: rgba(107, 142, 232, 0.25);
+
+  --bg: #171A20;
+  --bg-alt: #1E2128;
+  --bg-hover: #252830;
+  --bg-active: #2D3038;
+
+  --text-primary: #E8EAED;
+  --text-body: #BDC1C6;
+  --text-tertiary: #9AA0A6;
+  --text-placeholder: #6B7075;
+
+  --border-light: #2D3139;
+  --border-medium: #3C4149;
+
+  --frost: rgba(23, 26, 32, 0.85);
+
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --danger: #f87171;
+}
+
+/* ── Base Styles ────────────────────────────────────────────── */
 
 @layer base {
   * {
-    @apply border-border;
+    border-color: var(--border-light);
   }
+
   body {
-    @apply bg-background text-foreground;
+    background: var(--bg);
+    color: var(--text-body);
+    font-family: "Inter", -apple-system, Arial, sans-serif;
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.43;
+    letter-spacing: normal;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background: var(--blue-light);
+    color: var(--text-primary);
+  }
+
+  /* Remove default focus outlines, use custom */
+  :focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-medium);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--text-placeholder);
   }
 }
 
+/* ── Tesla Transitions ──────────────────────────────────────── */
+
+@layer utilities {
+  .t-transition {
+    transition: background-color 0.33s, color 0.33s, border-color 0.33s, opacity 0.33s;
+  }
+
+  .t-btn-transition {
+    transition: background-color 0.33s, color 0.33s, border-color 0.33s, box-shadow 0.25s;
+  }
+
+  /* Text hierarchy */
+  .t-hero {
+    font-size: 40px;
+    font-weight: 500;
+    line-height: 1.2;
+    color: var(--text-primary);
+  }
+
+  .t-heading {
+    font-size: 17px;
+    font-weight: 500;
+    line-height: 1.18;
+    color: var(--text-primary);
+  }
+
+  .t-body {
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.43;
+    color: var(--text-body);
+  }
+
+  .t-label {
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.2;
+    color: var(--text-primary);
+  }
+
+  .t-caption {
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.33;
+    color: var(--text-tertiary);
+  }
+
+  .t-placeholder {
+    color: var(--text-placeholder);
+  }
+}
+
+/* ── Email HTML Content Sandbox ─────────────────────────────── */
+
 .email-html-content {
   all: initial;
-  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  font-family: "Inter", -apple-system, Arial, sans-serif;
   font-size: 14px;
   line-height: 1.6;
-  color: #3c4043;
+  color: var(--text-body);
   display: block;
   max-width: 100%;
   overflow-x: auto;
@@ -157,27 +219,110 @@
 }
 
 .email-html-content a {
-  color: #1a73e8;
+  color: var(--blue);
   text-decoration: underline;
 }
+
+.dark .email-html-content {
+  color: var(--text-body);
+}
+
+.dark .email-html-content a {
+  color: var(--blue);
+}
+
+/* ── Form Inputs (dark mode) ────────────────────────────────── */
 
 .dark input,
 .dark textarea,
 .dark select {
-  background-color: var(--color-gm-bg);
-  color: var(--color-gm-text);
-  border-color: var(--color-gm-border-strong);
+  background-color: var(--bg-alt);
+  color: var(--text-primary);
+  border-color: var(--border-medium);
 }
 
 .dark input::placeholder,
 .dark textarea::placeholder {
-  color: var(--color-gm-text-secondary);
+  color: var(--text-placeholder);
 }
 
-.dark .email-html-content {
-  color: #e8eaed;
+/* ── Markdown in chat ───────────────────────────────────────── */
+
+.chat-markdown h1,
+.chat-markdown h2,
+.chat-markdown h3 {
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-top: 16px;
+  margin-bottom: 8px;
+}
+.chat-markdown h1 { font-size: 17px; }
+.chat-markdown h2 { font-size: 15px; }
+.chat-markdown h3 { font-size: 14px; }
+
+.chat-markdown p {
+  margin-bottom: 8px;
 }
 
-.dark .email-html-content a {
-  color: #8ab4f8;
+.chat-markdown ul,
+.chat-markdown ol {
+  padding-left: 20px;
+  margin-bottom: 8px;
 }
+
+.chat-markdown li {
+  margin-bottom: 4px;
+}
+
+.chat-markdown code {
+  background: var(--bg-alt);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: "SF Mono", "Menlo", monospace;
+}
+
+.chat-markdown pre {
+  background: var(--bg-alt);
+  padding: 12px;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin-bottom: 8px;
+}
+
+.chat-markdown pre code {
+  background: none;
+  padding: 0;
+}
+
+.chat-markdown a {
+  color: var(--blue);
+  text-decoration: underline;
+}
+
+.chat-markdown strong {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* ── Animation Keyframes ────────────────────────────────────── */
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-dot {
+  0%, 80%, 100% { opacity: 0.3; }
+  40% { opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.33s ease-out;
+}
+
+.typing-dot {
+  animation: pulse-dot 1.4s ease-in-out infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
