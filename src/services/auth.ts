@@ -279,17 +279,24 @@ export async function withFreshToken<T>(
   // Token expired or 401 — re-request via GIS
   await loadGIS();
   const tokenResponse = await requestToken({ hint: email });
+
+  // Validate token response
+  if (!tokenResponse?.access_token || !tokenResponse.expires_in) {
+    throw new Error('Invalid token response from Google');
+  }
+
   const profile = await fetchUserProfile(tokenResponse.access_token);
 
   const accounts = getAccounts();
   const existing = accounts.find((a) => a.email === email);
+  const expiresIn = Math.max(tokenResponse.expires_in, 1);
 
   const updatedAccount: StoredAccount = {
     email: profile.email,
     name: profile.name,
     picture: profile.picture,
     access_token: tokenResponse.access_token,
-    token_expiry: Date.now() + tokenResponse.expires_in * 1000,
+    token_expiry: Date.now() + expiresIn * 1000,
     color: existing?.color || ACCOUNT_COLORS[accounts.length % ACCOUNT_COLORS.length],
   };
 

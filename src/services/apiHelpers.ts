@@ -19,15 +19,38 @@ export class UnauthorizedError extends Error {
 export async function googleFetch<T = any>(
   url: string,
   token: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  timeoutMs = 30000,
 ): Promise<T> {
   const headers = new Headers(options.headers);
   headers.set('Authorization', `Bearer ${token}`);
 
-  const response = await fetch(url, { ...options, headers });
+  // Timeout via AbortController
+  const controller = new AbortController();
+  const existingSignal = options.signal;
+  if (existingSignal) {
+    existingSignal.addEventListener('abort', () => controller.abort(existingSignal.reason));
+  }
+  const timeoutId = setTimeout(() => controller.abort('Request timeout'), timeoutMs);
+
+  let response: Response;
+  try {
+    response = await fetch(url, { ...options, headers, signal: controller.signal });
+  } catch (e: any) {
+    clearTimeout(timeoutId);
+    if (e.name === 'AbortError') throw new Error(`Request timeout after ${timeoutMs}ms`);
+    throw e;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (response.status === 401) {
     throw new UnauthorizedError('Token expired or revoked');
+  }
+
+  if (response.status === 429) {
+    const retryAfter = response.headers.get('Retry-After');
+    throw new Error(`Rate limited. ${retryAfter ? `Retry after ${retryAfter}s` : 'Please wait.'}`);
   }
 
   if (!response.ok) {

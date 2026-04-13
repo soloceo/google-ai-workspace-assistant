@@ -44,21 +44,25 @@ function decodeEmailBody(payload: any): { html: string; text: string } {
 }
 
 function sanitizeHtml(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/\son\w+="[^"]*"/gi, "")
-    .replace(/\son\w+='[^']*'/gi, "")
-    .replace(/\son\w+=\S+/gi, "")
-    .replace(/javascript:/gi, "blocked:")
-    .replace(/data:\s*text\/html/gi, "blocked:")
-    .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
-    .replace(/<object[\s\S]*?<\/object>/gi, "")
-    .replace(/<embed[\s\S]*?>/gi, "")
-    .replace(/<form[\s\S]*?<\/form>/gi, "")
-    .replace(/<base[\s\S]*?>/gi, "")
-    .replace(/<meta[\s\S]*?>/gi, "")
-    .replace(/<link[\s\S]*?>/gi, "");
+  // Use DOMParser for robust sanitization instead of fragile regex
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const dangerousTags = ["script", "style", "iframe", "object", "embed", "form", "base", "meta", "link", "svg", "math"];
+  dangerousTags.forEach(tag => doc.querySelectorAll(tag).forEach(el => el.remove()));
+  doc.querySelectorAll("*").forEach(el => {
+    Array.from(el.attributes).forEach(attr => {
+      const name = attr.name.toLowerCase();
+      const value = attr.value.toLowerCase().trim();
+      if (name.startsWith("on")) { el.removeAttribute(attr.name); return; }
+      if (["href", "src", "action", "formaction", "xlink:href"].includes(name) &&
+          (/^(javascript|vbscript|data\s*:\s*text\/html)/i.test(value))) {
+        el.removeAttribute(attr.name);
+      }
+      if (name === "style" && /expression\s*\(|url\s*\(/i.test(value)) {
+        el.removeAttribute(attr.name);
+      }
+    });
+  });
+  return doc.body.innerHTML;
 }
 
 function getAttachments(payload: any): any[] {

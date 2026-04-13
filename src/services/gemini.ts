@@ -382,7 +382,8 @@ export async function analyzeAttachment(
  * Includes an in-memory cache with 5-minute TTL (per session).
  */
 
-// In-memory classification cache
+// In-memory classification cache (max 500 entries to prevent memory growth)
+const MAX_CACHE_SIZE = 500;
 const classificationCache = new Map<
   string,
   {
@@ -466,10 +467,17 @@ ${JSON.stringify(uncached)}`;
     classificationCache.set(c.id, { classification: c, expiry: now + TTL });
   }
 
-  // Clean up expired cache entries
+  // Clean up expired cache entries + enforce max size
   for (const [key, entry] of classificationCache) {
-    if (now >= entry.expiry) {
-      classificationCache.delete(key);
+    if (now >= entry.expiry) classificationCache.delete(key);
+  }
+  // Evict oldest entries if over limit
+  if (classificationCache.size > MAX_CACHE_SIZE) {
+    const excess = classificationCache.size - MAX_CACHE_SIZE;
+    const keys = classificationCache.keys();
+    for (let i = 0; i < excess; i++) {
+      const { value } = keys.next();
+      if (value) classificationCache.delete(value);
     }
   }
 

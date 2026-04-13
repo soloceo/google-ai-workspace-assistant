@@ -39,7 +39,7 @@ export default defineConfig(() => {
         output: {
           manualChunks: {
             'google-genai': ['@google/genai'],
-            'vendor-ui': ['react', 'react-dom', 'motion', 'sonner', 'lucide-react'],
+            'vendor-ui': ['react', 'react-dom', 'sonner', 'lucide-react'],
           },
         },
       },

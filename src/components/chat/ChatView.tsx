@@ -8,10 +8,28 @@ import { translations, type Language } from "../../translations";
 import * as gemini from "../../services/gemini";
 import type { ChatMessage } from "../../types";
 
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 function renderMarkdown(text: string): string {
-  return text
-    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
+  // Extract code blocks first (preserve raw content)
+  const codeBlocks: string[] = [];
+  let safe = text.replace(/```(\w*)\n([\s\S]*?)```/g, (_, _lang, code) => {
+    codeBlocks.push(`<pre><code>${escapeHtml(code)}</code></pre>`);
+    return `%%CODE_BLOCK_${codeBlocks.length - 1}%%`;
+  });
+  const inlineCodes: string[] = [];
+  safe = safe.replace(/`([^`]+)`/g, (_, code) => {
+    inlineCodes.push(`<code>${escapeHtml(code)}</code>`);
+    return `%%INLINE_CODE_${inlineCodes.length - 1}%%`;
+  });
+
+  // Escape remaining HTML
+  safe = escapeHtml(safe);
+
+  // Apply markdown formatting
+  safe = safe
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
     .replace(/^### (.+)$/gm, '<h3>$1</h3>')
@@ -22,6 +40,12 @@ function renderMarkdown(text: string): string {
     .replace(/<\/ul>\s*<ul>/g, '')
     .replace(/\n\n/g, '</p><p>')
     .replace(/\n/g, '<br/>');
+
+  // Restore code blocks
+  codeBlocks.forEach((block, i) => { safe = safe.replace(`%%CODE_BLOCK_${i}%%`, block); });
+  inlineCodes.forEach((code, i) => { safe = safe.replace(`%%INLINE_CODE_${i}%%`, code); });
+
+  return safe;
 }
 
 export type ActionExecutor = (name: string, args: Record<string, any>) => Promise<{ success: boolean; message: string }>;
