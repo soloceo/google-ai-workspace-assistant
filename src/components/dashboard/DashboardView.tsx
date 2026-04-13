@@ -1,6 +1,6 @@
 import {
   CheckSquare, Calendar as CalendarIcon, Mail, ChevronRight,
-  Circle, Check, Clock, AlertTriangle, FileText,
+  Clock, FileText, Sparkles,
 } from "lucide-react";
 import { translations, type Language } from "../../translations";
 import type { Task, TaskList } from "../../services/tasks";
@@ -119,6 +119,22 @@ export default function DashboardView({
           <p className="text-sm text-[var(--text-tertiary)]">{dateStr}</p>
         </div>
 
+        {/* ── AI Tip Card ── */}
+        <button
+          onClick={() => onNavigate("ai")}
+          className="w-full flex items-center gap-3 p-3 bg-[var(--blue-light)] rounded-[4px] text-left hover:bg-[var(--blue)]/15 t-transition group"
+        >
+          <div className="w-9 h-9 rounded-lg bg-[var(--blue)]/15 flex items-center justify-center flex-shrink-0">
+            <Sparkles className="size-4.5 text-[var(--blue)]" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-[var(--text-body)] leading-snug">{t.dashboardAiTip}</p>
+          </div>
+          <span className="text-xs font-medium text-[var(--blue)] flex-shrink-0 group-hover:underline">
+            {t.dashboardAiTipAction} →
+          </span>
+        </button>
+
         {/* ── Stats Cards ── */}
         <div className="grid grid-cols-3 gap-3">
           <button
@@ -157,7 +173,10 @@ export default function DashboardView({
         <section>
           <SectionHeader icon={CheckSquare} title={t.dashboardPendingTasks} count={pendingTasks.length} tab="tasks" />
           {pendingTasks.length === 0 ? (
-            <p className="text-sm text-[var(--text-quaternary)] py-3">{t.noTasks}</p>
+            <div className="py-4 text-center">
+              <p className="text-sm text-[var(--text-quaternary)]">{t.noTasks}</p>
+              <p className="text-xs text-[var(--text-quaternary)] mt-1">{t.emptyTasksHint}</p>
+            </div>
           ) : (
             <div className="space-y-0.5">
               {pendingTasks.slice(0, 6).map(task => {
@@ -189,7 +208,10 @@ export default function DashboardView({
         <section>
           <SectionHeader icon={CalendarIcon} title={t.dashboardTodayEvents} count={todayEvents.length} tab="calendar" />
           {todayEvents.length === 0 ? (
-            <p className="text-sm text-[var(--text-quaternary)] py-3">{t.noItemsFound}</p>
+            <div className="py-4 text-center">
+              <p className="text-sm text-[var(--text-quaternary)]">{t.noItemsFound}</p>
+              <p className="text-xs text-[var(--text-quaternary)] mt-1">{t.emptyCalendarHint}</p>
+            </div>
           ) : (
             <div className="space-y-0.5">
               {todayEvents.map((event: any) => {
@@ -223,7 +245,9 @@ export default function DashboardView({
         <section>
           <SectionHeader icon={Mail} title={t.dashboardUnreadEmails} count={unreadEmails.length} tab="mail" />
           {unreadEmails.length === 0 ? (
-            <p className="text-sm text-[var(--text-quaternary)] py-3">{t.noItemsFound}</p>
+            <div className="py-4 text-center">
+              <p className="text-sm text-[var(--text-quaternary)]">{t.emptyMailHint}</p>
+            </div>
           ) : (
             <div className="space-y-0.5">
               {unreadEmails.slice(0, 5).map((email: any) => {

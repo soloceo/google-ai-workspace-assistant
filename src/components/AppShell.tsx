@@ -770,44 +770,44 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
           {/* Nav tabs */}
           <nav className="flex flex-col items-center gap-1 flex-1">
             {tabs.map(({ id, icon: Icon, label }) => (
-              <button
-                key={id}
-                onClick={() => setActiveTab(id)}
-                title={label}
-                className={`w-10 h-10 flex items-center justify-center rounded-[4px] t-transition ${
-                  activeTab === id
-                    ? "bg-[var(--blue-light)] text-[var(--blue)]"
-                    : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-alt)]"
-                }`}
-              >
-                <Icon className="size-5" />
-              </button>
+              <div key={id} className="relative group">
+                <button
+                  onClick={() => setActiveTab(id)}
+                  className={`w-10 h-10 flex items-center justify-center rounded-[4px] t-transition ${
+                    activeTab === id
+                      ? "bg-[var(--blue-light)] text-[var(--blue)]"
+                      : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-alt)]"
+                  }`}
+                >
+                  <Icon className="size-5" />
+                </button>
+                {/* Tooltip */}
+                <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2.5 py-1 bg-[var(--text-primary)] text-[var(--bg)] text-xs font-medium rounded-[4px] whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 t-transition z-50">
+                  {label}
+                </div>
+              </div>
             ))}
           </nav>
 
           {/* Bottom actions */}
           <div className="flex flex-col items-center gap-1 mt-auto">
-            <button
-              onClick={() => onLangChange(lang === "en" ? "zh" : "en")}
-              className="w-10 h-10 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition"
-              title={lang === "en" ? "中文" : "English"}
-            >
-              <Languages className="size-4" />
-            </button>
-            <button
-              onClick={() => setShowSettings(true)}
-              className="w-10 h-10 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition"
-              title={lang === "zh" ? "设置" : "Settings"}
-            >
-              <Settings className="size-4" />
-            </button>
-            <button
-              onClick={handleLogout}
-              className="w-10 h-10 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition"
-              title={lang === "zh" ? "退出" : "Logout"}
-            >
-              <LogOut className="size-4" />
-            </button>
+            {[
+              { onClick: () => onLangChange(lang === "en" ? "zh" : "en"), icon: Languages, tip: lang === "en" ? "中文" : "English" },
+              { onClick: () => setShowSettings(true), icon: Settings, tip: t.settings },
+              { onClick: handleLogout, icon: LogOut, tip: t.logout },
+            ].map(({ onClick, icon: Icon, tip }) => (
+              <div key={tip} className="relative group">
+                <button
+                  onClick={onClick}
+                  className="w-10 h-10 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition"
+                >
+                  <Icon className="size-4" />
+                </button>
+                <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2.5 py-1 bg-[var(--text-primary)] text-[var(--bg)] text-xs font-medium rounded-[4px] whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 t-transition z-50">
+                  {tip}
+                </div>
+              </div>
+            ))}
           </div>
         </aside>
       )}
@@ -970,6 +970,7 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
               aiModel={settings.aiModel}
               workspaceContext={workspaceContext()}
               executeAction={executeAction}
+              onOpenSettings={() => setShowSettings(true)}
             />
           )}
         </main>
