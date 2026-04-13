@@ -1835,20 +1835,17 @@ export default function WorkspaceAssistant({
             </>
           )}
           <div className="flex items-center gap-1">
-            {isMobile && (
-              <Button variant="ghost" size="icon" onClick={handleSettings} className="text-gm-text-secondary h-9 w-9">
-                <Settings className="h-4 w-4" />
-              </Button>
-            )}
             <Button variant="ghost" size="icon" onClick={() => loadData()} className="text-gm-text-secondary h-9 w-9">
               <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
             </Button>
-            <Avatar className="h-8 w-8 border border-gm-border">
-              {profile?.picture && <AvatarImage src={profile.picture} />}
-              <AvatarFallback className="bg-[#1a73e8] text-white text-xs">
-                {profile?.name?.[0] || "U"}
-              </AvatarFallback>
-            </Avatar>
+            <button onClick={isMobile ? handleSettings : undefined} className={cn("rounded-full", isMobile && "active:scale-95 transition-transform")}>
+              <Avatar className="h-8 w-8 border border-gm-border">
+                {profile?.picture && <AvatarImage src={profile.picture} />}
+                <AvatarFallback className="bg-[#1a73e8] text-white text-xs">
+                  {profile?.name?.[0] || "U"}
+                </AvatarFallback>
+              </Avatar>
+            </button>
           </div>
         </header>
 
@@ -3664,66 +3661,58 @@ function AIChatPanel({ messages, input, setInput, streaming, onSend, chatEndRef,
                       </span>
                     </div>
                   )}
-                  {/* Feature 15: Quick actions + referenced email chips */}
+                  {/* Referenced email chips + quick actions per message */}
                   {msg.role === "assistant" && msg.text && !streaming && (() => {
-                    const txt = msg.text.toLowerCase();
-                    const hasReply = /reply|回复|草拟|draft/.test(txt);
-                    const hasArchive = /archive|归档/.test(txt);
-
-                    // Match emails mentioned in the AI response by subject
+                    // Match emails mentioned in this AI response by subject or sender
                     const referencedEmails = data.mail.filter((email: any) => {
                       const subject = email.payload?.headers?.find((h: any) => h.name === "Subject")?.value || "";
                       const from = email.payload?.headers?.find((h: any) => h.name === "From")?.value || "";
                       const fromName = from.replace(/<[^>]+>/g, "").trim();
                       if (!subject && !fromName) return false;
-                      // Check if the AI response mentions this email's subject or sender name
                       const lower = msg.text.toLowerCase();
                       return (subject.length > 3 && lower.includes(subject.toLowerCase()))
                         || (fromName.length > 2 && lower.includes(fromName.toLowerCase()));
                     }).slice(0, 5);
 
-                    if (!hasReply && !hasArchive && referencedEmails.length === 0) return null;
+                    if (referencedEmails.length === 0) return null;
                     return (
-                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                        {referencedEmails.length > 0 && referencedEmails.map((email: any) => {
+                      <div className="flex flex-col gap-1 mt-2 ml-0.5">
+                        {referencedEmails.map((email: any) => {
                           const subject = email.payload?.headers?.find((h: any) => h.name === "Subject")?.value || "";
-                          const truncated = subject.length > 25 ? subject.slice(0, 25) + "…" : subject;
+                          const from = email.payload?.headers?.find((h: any) => h.name === "From")?.value || "";
+                          const fromName = from.replace(/<[^>]+>/g, "").trim();
                           return (
                             <button
                               key={email.id}
                               onClick={() => onSelectEmail?.(email.id)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-gm-border bg-gm-bg-container text-gm-text text-[11px] font-medium hover:bg-gm-blue-bg hover:border-gm-blue hover:text-gm-blue transition-colors"
+                              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gm-border bg-gm-bg text-left hover:bg-gm-blue-bg hover:border-gm-blue group/email transition-colors w-fit max-w-full"
                             >
-                              <Mail className="h-3 w-3 flex-shrink-0" />
-                              <span className="truncate max-w-[180px]">{truncated || (lang === "zh" ? "无主题" : "No Subject")}</span>
-                              <ExternalLink className="h-2.5 w-2.5 opacity-50 flex-shrink-0" />
+                              <Mail className="h-3.5 w-3.5 text-gm-text-secondary group-hover/email:text-gm-blue flex-shrink-0" />
+                              <div className="min-w-0 flex-1">
+                                <div className="text-[12px] font-medium text-gm-text truncate group-hover/email:text-gm-blue">{subject || (lang === "zh" ? "无主题" : "No Subject")}</div>
+                                {fromName && <div className="text-[10px] text-gm-text-secondary truncate">{fromName}</div>}
+                              </div>
+                              <ExternalLink className="h-3 w-3 text-gm-text-secondary opacity-0 group-hover/email:opacity-100 flex-shrink-0" />
                             </button>
                           );
                         })}
-                        {hasReply && (
-                          <button
-                            onClick={() => onDraftReply?.("")}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-gm-blue-border-faint bg-gm-blue-bg text-gm-blue text-[11px] font-medium hover:bg-gm-blue hover:text-white transition-colors"
-                          >
-                            <MessageSquare className="h-3 w-3" />
-                            {t?.draftReply || "Draft Reply"}
-                          </button>
-                        )}
-                        {hasArchive && data.mail.length > 0 && (
-                          <button
-                            onClick={() => {
-                              const firstUnread = data.mail.find((m: any) => m.labelIds?.includes("UNREAD"));
-                              if (firstUnread) onArchiveEmail?.(firstUnread.id);
-                            }}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-gm-border text-gm-text-secondary text-[11px] font-medium hover:bg-gm-bg-dim transition-colors"
-                          >
-                            <Archive className="h-3 w-3" />
-                            {t?.archive || "Archive"}
-                          </button>
-                        )}
                       </div>
                     );
                   })()}
+                  {/* Follow-up actions under the last assistant message */}
+                  {msg.role === "assistant" && msg.text && !streaming && msgIdx === messages.length - 1 && (
+                    <div className="flex gap-1.5 mt-2 flex-wrap">
+                      {followUpChips.map((chip) => (
+                        <button
+                          key={chip.label}
+                          onClick={() => onSend(chip.query)}
+                          className="px-2.5 py-1 rounded-full border border-gm-border text-[11px] text-gm-blue hover:bg-gm-blue-bg transition-colors whitespace-nowrap"
+                        >
+                          {chip.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 {msg.role === "user" && (
                   <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gm-bg-container border border-gm-border flex items-center justify-center mt-0.5">
@@ -3736,24 +3725,6 @@ function AIChatPanel({ messages, input, setInput, streaming, onSend, chatEndRef,
           <div ref={chatEndRef} />
         </div>
       </div>
-
-      {/* Follow-up chips after AI response */}
-      {messages.length > 0 && !streaming && (
-        <div className="max-w-3xl mx-auto w-full px-4 pb-2">
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-            {(messages[messages.length - 1]?.role === "assistant" ? followUpChips : chips).map((chip) => (
-              <button
-                key={chip.label}
-                onClick={() => onSend(chip.query)}
-                className="flex-shrink-0 px-3 py-1.5 rounded-full border border-gm-border text-xs text-gm-blue hover:bg-gm-blue-bg transition-colors whitespace-nowrap"
-              >
-                {"icon" in chip && <span className="mr-1">{(chip as any).icon}</span>}
-                {chip.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Input bar */}
       <div className="border-t border-gm-border bg-gm-bg px-4 py-3">
