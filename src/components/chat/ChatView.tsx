@@ -21,15 +21,18 @@ function renderMarkdown(text: string): string {
     .replace(/\n/g, '<br/>');
 }
 
+export type ActionExecutor = (name: string, args: Record<string, any>) => Promise<{ success: boolean; message: string }>;
+
 interface ChatViewProps {
   isDemo: boolean;
   lang: Language;
   geminiApiKey: string;
   aiModel: string;
   workspaceContext: string;
+  executeAction: ActionExecutor;
 }
 
-export default function ChatView({ isDemo, lang, geminiApiKey, aiModel, workspaceContext }: ChatViewProps) {
+export default function ChatView({ isDemo, lang, geminiApiKey, aiModel, workspaceContext, executeAction }: ChatViewProps) {
   const t = translations[lang];
 
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
@@ -92,13 +95,17 @@ export default function ChatView({ isDemo, lang, geminiApiKey, aiModel, workspac
     try {
       const history = messagesRef.current.slice(-10).map(m => ({ role: m.role, text: m.text }));
 
-      const stream = gemini.chatStream(geminiApiKey, {
-        message: text.trim(),
-        history,
-        context: workspaceContext,
-        lang,
-        model: aiModel,
-      });
+      const stream = gemini.chatStreamWithTools(
+        geminiApiKey,
+        {
+          message: text.trim(),
+          history,
+          context: workspaceContext,
+          lang,
+          model: aiModel,
+        },
+        executeAction,
+      );
 
       let accumulated = "";
       for await (const chunk of stream) {
@@ -118,7 +125,7 @@ export default function ChatView({ isDemo, lang, geminiApiKey, aiModel, workspac
     } finally {
       setStreaming(false);
     }
-  }, [geminiApiKey, workspaceContext, lang, aiModel, t]);
+  }, [geminiApiKey, workspaceContext, lang, aiModel, executeAction, t]);
 
   const clearChat = useCallback(() => {
     setMessages([]);

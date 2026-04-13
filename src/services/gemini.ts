@@ -2,7 +2,7 @@
  * Direct Gemini API calls using the @google/genai SDK (browser-compatible).
  * Replaces all server-side AI routes from server.ts.
  */
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Type } from '@google/genai';
 
 // ── Client Singleton ────────────────────────────────────────
 
@@ -476,4 +476,244 @@ ${JSON.stringify(uncached)}`;
   // Merge cached + new results
   const allClassifications = [...cached, ...newClassifications];
   return { classifications: allClassifications };
+}
+
+// ── Workspace Tools (Function Calling) ─────────────────────
+
+export const WORKSPACE_TOOLS = [{
+  functionDeclarations: [
+    // ── Tasks ──
+    {
+      name: "create_task",
+      description: "Create a new task in the user's task list",
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          title: { type: Type.STRING, description: "Task title" },
+          notes: { type: Type.STRING, description: "Optional task notes/description" },
+          due: { type: Type.STRING, description: "Due date in YYYY-MM-DD format" },
+          listName: { type: Type.STRING, description: "Name of the task list. Defaults to the first list if not specified." },
+        },
+        required: ["title"],
+      },
+    },
+    {
+      name: "complete_task",
+      description: "Mark a task as completed by its title",
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          title: { type: Type.STRING, description: "The title of the task to complete (fuzzy match)" },
+        },
+        required: ["title"],
+      },
+    },
+    {
+      name: "delete_task",
+      description: "Delete a task by its title",
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          title: { type: Type.STRING, description: "The title of the task to delete (fuzzy match)" },
+        },
+        required: ["title"],
+      },
+    },
+    // ── Calendar ──
+    {
+      name: "create_event",
+      description: "Create a new calendar event",
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          summary: { type: Type.STRING, description: "Event title" },
+          start: { type: Type.STRING, description: "Start datetime in YYYY-MM-DDTHH:mm format" },
+          end: { type: Type.STRING, description: "End datetime in YYYY-MM-DDTHH:mm format" },
+          description: { type: Type.STRING, description: "Event description" },
+          location: { type: Type.STRING, description: "Event location" },
+        },
+        required: ["summary", "start", "end"],
+      },
+    },
+    {
+      name: "delete_event",
+      description: "Delete a calendar event by its title",
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          title: { type: Type.STRING, description: "The title/summary of the event to delete (fuzzy match)" },
+        },
+        required: ["title"],
+      },
+    },
+    // ── Email ──
+    {
+      name: "send_email",
+      description: "Compose and send a new email",
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          to: { type: Type.STRING, description: "Recipient email address" },
+          subject: { type: Type.STRING, description: "Email subject" },
+          body: { type: Type.STRING, description: "Email body content" },
+          cc: { type: Type.STRING, description: "CC email addresses, comma separated" },
+        },
+        required: ["to", "subject", "body"],
+      },
+    },
+    {
+      name: "archive_email",
+      description: "Archive an email by subject (removes from inbox)",
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          subject: { type: Type.STRING, description: "Subject of the email to archive (fuzzy match)" },
+        },
+        required: ["subject"],
+      },
+    },
+    {
+      name: "trash_email",
+      description: "Move an email to trash by subject",
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          subject: { type: Type.STRING, description: "Subject of the email to trash (fuzzy match)" },
+        },
+        required: ["subject"],
+      },
+    },
+  ],
+}];
+
+/**
+ * Chat with AI using streaming + function calling (tool use).
+ *
+ * Yields either text chunks (string) or tool-call markers.
+ * The caller provides `executeAction` to run the actual operations.
+ */
+export async function* chatStreamWithTools(
+  apiKey: string,
+  params: {
+    message: string;
+    history?: Array<{ role: string; text: string }>;
+    context?: string;
+    lang: string;
+    model?: string;
+  },
+  executeAction: (name: string, args: Record<string, any>) => Promise<{ success: boolean; message: string }>,
+): AsyncGenerator<string> {
+  if (!apiKey) throw new Error('Gemini API key not configured');
+  if (!params.message?.trim()) throw new Error('Message required');
+
+  const client = getClient(apiKey);
+
+  const today = new Date().toLocaleDateString('en-US', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+  });
+
+  const systemPrompt = `You are a smart Google Workspace AI assistant that can both READ and EXECUTE actions on the user's workspace.
+
+Here is the user's current workspace data:
+${params.context || '(no data loaded)'}
+
+Today is ${today}.
+
+Instructions:
+- Answer questions based on the provided workspace data.
+- When the user asks you to DO something (create task, send email, create event, delete, etc.), use the appropriate tool/function.
+- For fuzzy matching: find the closest matching item by title/subject. If ambiguous, ask the user to clarify.
+- Be concise. Use bullet points and emoji for readability.
+- After executing an action, confirm what you did.
+- Respond in ${params.lang === 'zh' ? 'Chinese (Simplified)' : 'English'}.`;
+
+  // Build contents
+  const contents: Array<{ role: string; parts: Array<any> }> = [];
+  contents.push({ role: 'user', parts: [{ text: systemPrompt }] });
+  contents.push({
+    role: 'model',
+    parts: [{
+      text: params.lang === 'zh'
+        ? '好的，我已准备好帮助你管理工作区。我可以查询数据，也可以帮你创建任务、发送邮件、管理日历等。请问有什么需要？'
+        : 'Ready to help manage your workspace. I can query data, create tasks, send emails, manage calendar, and more. What would you like to do?',
+    }],
+  });
+
+  if (Array.isArray(params.history)) {
+    for (const h of params.history.slice(-10)) {
+      contents.push({
+        role: h.role === 'user' ? 'user' : 'model',
+        parts: [{ text: h.text }],
+      });
+    }
+  }
+
+  contents.push({ role: 'user', parts: [{ text: params.message }] });
+
+  // First call with tools
+  const stream = await client.models.generateContentStream({
+    model: params.model || 'gemini-2.5-flash',
+    contents,
+    config: { tools: WORKSPACE_TOOLS },
+  });
+
+  let functionCallPart: { name: string; args: Record<string, any> } | null = null;
+  let textSoFar = '';
+
+  for await (const chunk of stream) {
+    const parts = chunk.candidates?.[0]?.content?.parts || [];
+    for (const part of parts) {
+      if (part.functionCall) {
+        functionCallPart = {
+          name: part.functionCall.name as string,
+          args: part.functionCall.args as Record<string, any>,
+        };
+      } else if (part.text) {
+        textSoFar += part.text;
+        yield part.text;
+      }
+    }
+  }
+
+  // If no function call, we're done (text was already yielded)
+  if (!functionCallPart) return;
+
+  // ── Execute the tool call ──
+  const actionLabel = params.lang === 'zh'
+    ? `\n\n⚡ 正在执行: **${functionCallPart.name}**...\n`
+    : `\n\n⚡ Executing: **${functionCallPart.name}**...\n`;
+  yield actionLabel;
+
+  let actionResult: { success: boolean; message: string };
+  try {
+    actionResult = await executeAction(functionCallPart.name, functionCallPart.args);
+  } catch (e: any) {
+    actionResult = { success: false, message: e.message || 'Action failed' };
+  }
+
+  // ── Send function result back for natural language confirmation ──
+  contents.push({
+    role: 'model',
+    parts: [{ functionCall: { name: functionCallPart.name, args: functionCallPart.args } }],
+  });
+  contents.push({
+    role: 'user',
+    parts: [{
+      functionResponse: {
+        name: functionCallPart.name,
+        response: actionResult,
+      },
+    }],
+  });
+
+  const followUp = await client.models.generateContentStream({
+    model: params.model || 'gemini-2.5-flash',
+    contents,
+    config: { tools: WORKSPACE_TOOLS },
+  });
+
+  for await (const chunk of followUp) {
+    const text = chunk.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (text) yield text;
+  }
 }

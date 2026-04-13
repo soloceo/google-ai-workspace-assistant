@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Mail, Calendar, Sparkles, Languages, ShieldCheck } from "lucide-react";
+import { Mail, Calendar, CheckSquare, Sparkles, Languages, ShieldCheck } from "lucide-react";
 import { translations, type Language } from "../translations";
 
 interface LoginScreenProps {
@@ -25,6 +25,7 @@ export default function LoginScreen({ lang, onLangChange, onLogin, onDemo }: Log
   const features = [
     { icon: Mail, title: t.featureMail, desc: t.featureMailDesc },
     { icon: Calendar, title: t.featureCalendar, desc: t.featureCalendarDesc },
+    { icon: CheckSquare, title: t.featureTasks, desc: t.featureTasksDesc },
     { icon: Sparkles, title: t.featureAI, desc: t.featureAIDesc },
   ];
 
@@ -81,7 +82,7 @@ export default function LoginScreen({ lang, onLangChange, onLogin, onDemo }: Log
         </div>
 
         {/* Features */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-4 gap-2">
           {features.map(({ icon: Icon, title, desc }) => (
             <div key={title} className="text-center space-y-2 p-3">
               <div className="mx-auto w-10 h-10 rounded-[4px] bg-[var(--blue-light)] flex items-center justify-center">
