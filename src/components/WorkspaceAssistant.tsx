@@ -1875,6 +1875,13 @@ export default function WorkspaceAssistant({
               onArchiveEmail={(messageId: string) => {
                 handleMailAction("archive", messageId);
               }}
+              onSelectEmail={(emailId: string) => {
+                const email = data.mail.find((m: any) => m.id === emailId);
+                if (email) {
+                  setActiveTab("mail");
+                  handleSelectItem(email);
+                }
+              }}
             />
           ) : (
           <>
@@ -3526,7 +3533,7 @@ function DraftOverlay({ show, prompt, setPrompt, drafting, onDraft, onAutoGenera
   );
 }
 
-function AIChatPanel({ messages, input, setInput, streaming, onSend, chatEndRef, lang, t, isMobile, onClearChat, data, onDraftReply, onArchiveEmail }: {
+function AIChatPanel({ messages, input, setInput, streaming, onSend, chatEndRef, lang, t, isMobile, onClearChat, data, onDraftReply, onArchiveEmail, onSelectEmail }: {
   messages: ChatMessage[];
   input: string;
   setInput: (v: string) => void;
@@ -3540,6 +3547,7 @@ function AIChatPanel({ messages, input, setInput, streaming, onSend, chatEndRef,
   data: { mail: any[]; calendar: any[] };
   onDraftReply?: (subject: string) => void;
   onArchiveEmail?: (messageId: string) => void;
+  onSelectEmail?: (emailId: string) => void;
 }) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -3656,15 +3664,42 @@ function AIChatPanel({ messages, input, setInput, streaming, onSend, chatEndRef,
                       </span>
                     </div>
                   )}
-                  {/* Feature 15: Quick action chips based on AI response keywords */}
+                  {/* Feature 15: Quick actions + referenced email chips */}
                   {msg.role === "assistant" && msg.text && !streaming && (() => {
                     const txt = msg.text.toLowerCase();
                     const hasReply = /reply|回复|草拟|draft/.test(txt);
                     const hasArchive = /archive|归档/.test(txt);
-                    if (!hasReply && !hasArchive) return null;
+
+                    // Match emails mentioned in the AI response by subject
+                    const referencedEmails = data.mail.filter((email: any) => {
+                      const subject = email.payload?.headers?.find((h: any) => h.name === "Subject")?.value || "";
+                      const from = email.payload?.headers?.find((h: any) => h.name === "From")?.value || "";
+                      const fromName = from.replace(/<[^>]+>/g, "").trim();
+                      if (!subject && !fromName) return false;
+                      // Check if the AI response mentions this email's subject or sender name
+                      const lower = msg.text.toLowerCase();
+                      return (subject.length > 3 && lower.includes(subject.toLowerCase()))
+                        || (fromName.length > 2 && lower.includes(fromName.toLowerCase()));
+                    }).slice(0, 5);
+
+                    if (!hasReply && !hasArchive && referencedEmails.length === 0) return null;
                     return (
                       <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                        <span className="text-[10px] text-gm-text-secondary font-medium">{t?.quickActions || "Quick Actions"}:</span>
+                        {referencedEmails.length > 0 && referencedEmails.map((email: any) => {
+                          const subject = email.payload?.headers?.find((h: any) => h.name === "Subject")?.value || "";
+                          const truncated = subject.length > 25 ? subject.slice(0, 25) + "…" : subject;
+                          return (
+                            <button
+                              key={email.id}
+                              onClick={() => onSelectEmail?.(email.id)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-gm-border bg-gm-bg-container text-gm-text text-[11px] font-medium hover:bg-gm-blue-bg hover:border-gm-blue hover:text-gm-blue transition-colors"
+                            >
+                              <Mail className="h-3 w-3 flex-shrink-0" />
+                              <span className="truncate max-w-[180px]">{truncated || (lang === "zh" ? "无主题" : "No Subject")}</span>
+                              <ExternalLink className="h-2.5 w-2.5 opacity-50 flex-shrink-0" />
+                            </button>
+                          );
+                        })}
                         {hasReply && (
                           <button
                             onClick={() => onDraftReply?.("")}
