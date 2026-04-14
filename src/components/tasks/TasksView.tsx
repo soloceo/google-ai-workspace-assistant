@@ -108,26 +108,28 @@ export default function TasksView({
     const isOverdue = dueDate && dueDate < new Date() && !isCompleted;
 
     return (
-      <div key={task.id} className={isSubtask ? "ml-8" : ""}>
-        <div className={`group flex items-start gap-3 py-2.5 px-3 rounded-[4px] t-transition hover:bg-[var(--bg-alt)] ${isCompleted ? "opacity-50" : ""}`}>
-          {/* Toggle circle */}
+      <div key={task.id} className={isSubtask ? "ml-6 sm:ml-8" : ""}>
+        <div className={`group flex items-start gap-2.5 sm:gap-3 py-2.5 sm:py-2.5 px-2 sm:px-3 rounded-[4px] t-transition hover:bg-[var(--bg-alt)] active:bg-[var(--bg-alt)] ${isCompleted ? "opacity-50" : ""}`}>
+          {/* Toggle circle — 44px touch zone on mobile */}
           <button
             onClick={() => onToggleTask(selectedListId!, task.id, isCompleted)}
-            className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center t-transition ${
+            className={`flex-shrink-0 w-10 h-10 sm:w-5 sm:h-5 sm:mt-0.5 flex items-center justify-center rounded-full t-transition`}
+          >
+            <div className={`w-[22px] h-[22px] sm:w-5 sm:h-5 rounded-full border-2 flex items-center justify-center t-transition ${
               isCompleted
                 ? "bg-[var(--blue)] border-[var(--blue)] text-white"
                 : "border-[var(--border)] hover:border-[var(--blue)]"
-            }`}
-          >
-            {isCompleted && <Check className="size-3" />}
+            }`}>
+              {isCompleted && <Check className="size-3" />}
+            </div>
           </button>
 
           {/* Content */}
           <div
-            className="flex-1 min-w-0 cursor-pointer"
+            className="flex-1 min-w-0 cursor-pointer py-1 sm:py-0"
             onClick={() => setExpandedTask(isExpanded ? null : task.id)}
           >
-            <p className={`text-sm ${isCompleted ? "line-through text-[var(--text-tertiary)]" : "text-[var(--text-primary)]"}`}>
+            <p className={`text-[13px] sm:text-sm leading-snug ${isCompleted ? "line-through text-[var(--text-tertiary)]" : "text-[var(--text-primary)]"}`}>
               {task.title}
             </p>
             <div className="flex items-center gap-2 flex-wrap mt-0.5">
@@ -159,15 +161,15 @@ export default function TasksView({
 
           {/* Notes indicator */}
           {task.notes && !isExpanded && (
-            <FileText className="size-3.5 text-[var(--text-quaternary)] mt-0.5 flex-shrink-0" />
+            <FileText className="size-3.5 text-[var(--text-quaternary)] mt-2.5 sm:mt-0.5 flex-shrink-0" />
           )}
 
-          {/* Delete */}
+          {/* Delete — always visible on mobile */}
           <button
             onClick={() => onDeleteTask(selectedListId!, task.id)}
-            className="opacity-0 group-hover:opacity-100 mt-0.5 text-[var(--text-quaternary)] hover:text-red-500 t-transition flex-shrink-0"
+            className={`${isMobile ? "opacity-100 size-10" : "opacity-0 group-hover:opacity-100 size-6 mt-0.5"} flex items-center justify-center text-[var(--text-quaternary)] hover:text-red-500 active:text-red-500 t-transition flex-shrink-0`}
           >
-            <Trash2 className="size-3.5" />
+            <Trash2 className="size-4 sm:size-3.5" />
           </button>
         </div>
 
@@ -271,18 +273,41 @@ export default function TasksView({
       <div className="flex-1 flex flex-col overflow-hidden">
         {selectedList ? (
           <>
-            {/* Mobile: list selector dropdown */}
+            {/* Mobile: list selector as scrollable tabs */}
             {isMobile && (
-              <div className="px-3 py-2 border-b border-[var(--border-light)]">
-                <select
-                  value={selectedListId || ""}
-                  onChange={e => setActiveListId(e.target.value)}
-                  className="w-full h-9 px-2 text-sm bg-transparent border border-[var(--border-light)] rounded-[4px] text-[var(--text-primary)] t-transition"
+              <div className="flex items-center gap-1 px-3 py-2 border-b border-[var(--border-light)] overflow-x-auto no-scrollbar">
+                {taskLists.map(list => {
+                  const isActive = selectedListId === list.id;
+                  const count = tasks.filter(t => t.listId === list.id && t.status === "needsAction").length;
+                  return (
+                    <button
+                      key={list.id}
+                      onClick={() => setActiveListId(list.id)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium rounded-full whitespace-nowrap flex-shrink-0 t-transition ${
+                        isActive
+                          ? "bg-[var(--blue)] text-white"
+                          : "bg-[var(--bg-alt)] text-[var(--text-body)] active:bg-[var(--bg-active)]"
+                      }`}
+                    >
+                      <div
+                        className="w-2 h-2 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: isActive ? "rgba(255,255,255,0.7)" : list.accountColor }}
+                      />
+                      {list.title}
+                      {count > 0 && (
+                        <span className={`text-[11px] ${isActive ? "text-white/70" : "text-[var(--text-quaternary)]"}`}>
+                          {count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+                <button
+                  onClick={() => setShowNewList(true)}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-[13px] text-[var(--text-tertiary)] rounded-full whitespace-nowrap flex-shrink-0 active:bg-[var(--bg-alt)] t-transition"
                 >
-                  {taskLists.map(list => (
-                    <option key={list.id} value={list.id}>{list.title}</option>
-                  ))}
-                </select>
+                  <Plus className="size-3.5" />
+                </button>
               </div>
             )}
 
@@ -355,9 +380,9 @@ export default function TasksView({
               ) : (
                 <button
                   onClick={() => setShowNewTask(true)}
-                  className="w-full flex items-center gap-2 px-3 py-2.5 mb-1 text-sm text-[var(--blue)] hover:bg-[var(--blue-light)] rounded-[4px] t-transition"
+                  className="w-full flex items-center gap-2 px-3 py-3 sm:py-2.5 mb-1 text-sm text-[var(--blue)] hover:bg-[var(--blue-light)] active:bg-[var(--blue-light)] rounded-[4px] t-transition"
                 >
-                  <Plus className="size-4" />
+                  <Plus className="size-5 sm:size-4" />
                   {t.addTask}
                 </button>
               )}

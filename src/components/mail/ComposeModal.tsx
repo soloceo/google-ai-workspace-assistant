@@ -144,14 +144,18 @@ export default function ComposeModal({
       <div className="absolute inset-0 bg-black/30" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative w-full sm:max-w-lg bg-[var(--bg)] sm:rounded-[4px] flex flex-col max-h-[90vh] animate-fade-in">
+      <div className="relative w-full sm:max-w-lg bg-[var(--bg)] sm:rounded-[4px] rounded-t-2xl flex flex-col max-h-[95vh] sm:max-h-[90vh] animate-fade-in">
+        {/* Drag handle (mobile) */}
+        <div className="flex justify-center pt-2 pb-0 sm:hidden">
+          <div className="w-8 h-1 rounded-full bg-[var(--border-medium)]" />
+        </div>
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-light)]">
-          <h2 className="text-sm font-medium text-[var(--text-primary)]">
+        <div className="flex items-center justify-between px-4 py-2.5 sm:py-3 border-b border-[var(--border-light)]">
+          <h2 className="text-sm font-medium text-[var(--text-primary)] truncate pr-2">
             {isReply ? `${t.reply}: ${replySubject}` : t.compose}
           </h2>
-          <button onClick={onClose} className="size-7 flex items-center justify-center text-[var(--text-tertiary)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition">
-            <X className="size-4" />
+          <button onClick={onClose} className="size-9 sm:size-7 flex items-center justify-center text-[var(--text-tertiary)] active:bg-[var(--bg-alt)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition flex-shrink-0">
+            <X className="size-5 sm:size-4" />
           </button>
         </div>
 
@@ -267,27 +271,27 @@ export default function ComposeModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center gap-2 px-4 py-3 border-t border-[var(--border-light)]">
+        <div className="flex items-center gap-1.5 sm:gap-2 px-4 py-2.5 sm:py-3 border-t border-[var(--border-light)] safe-area-pb">
           <button onClick={handleSend} disabled={sending || !to.trim()}
-            className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-[var(--blue)] hover:bg-[var(--blue-hover)] rounded-[4px] t-btn-transition disabled:opacity-50">
+            className="flex items-center gap-2 px-5 h-10 sm:h-9 text-sm font-medium text-white bg-[var(--blue)] hover:bg-[var(--blue-hover)] rounded-[4px] t-btn-transition disabled:opacity-50">
             {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
             {t.send}
           </button>
           <button onClick={handleAddAttachment}
-            className="size-9 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition"
+            className="size-10 sm:size-9 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] active:bg-[var(--bg-alt)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition"
             title={t.addAttachment}>
-            <Paperclip className="size-4" />
+            <Paperclip className="size-[18px] sm:size-4" />
           </button>
           {geminiApiKey && (
             <button onClick={() => setShowDraftInput(v => !v)}
-              className="size-9 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--blue)] hover:bg-[var(--blue-light)] rounded-[4px] t-transition"
+              className="size-10 sm:size-9 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--blue)] active:bg-[var(--blue-light)] hover:bg-[var(--blue-light)] rounded-[4px] t-transition"
               title={t.draftReply}>
-              <Sparkles className="size-4" />
+              <Sparkles className="size-[18px] sm:size-4" />
             </button>
           )}
           <div className="flex-1" />
           <button onClick={onClose}
-            className="px-4 py-2 text-sm text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition">
+            className="px-3 sm:px-4 h-10 sm:h-9 text-sm text-[var(--text-tertiary)] hover:text-[var(--text-primary)] active:bg-[var(--bg-alt)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition">
             {t.cancel}
           </button>
         </div>

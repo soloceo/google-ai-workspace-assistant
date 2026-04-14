@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, Plus, Trash2, Sun, Moon, Monitor, ExternalLink, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { X, Plus, Trash2, Sun, Moon, Monitor, ExternalLink, Loader2, CheckCircle2, XCircle, Languages, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import { translations, type Language } from "../../translations";
 import type { AccountSummary } from "../../types";
@@ -16,11 +16,14 @@ interface SettingsPanelProps {
   onAddAccount: () => void;
   onRemoveAccount: (email: string) => void;
   onClose: () => void;
+  onLangChange?: (l: Language) => void;
+  onLogout?: () => void;
 }
 
 export default function SettingsPanel({
   lang, settings, geminiApiKey, accounts, isDemo,
   onSave, onSaveApiKey, onAddAccount, onRemoveAccount, onClose,
+  onLangChange, onLogout,
 }: SettingsPanelProps) {
   const t = translations[lang];
 
@@ -64,20 +67,24 @@ export default function SettingsPanel({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative w-full max-w-md bg-[var(--bg)] rounded-[4px] flex flex-col max-h-[80vh] animate-fade-in">
+      <div className="relative w-full sm:max-w-md bg-[var(--bg)] sm:rounded-[4px] rounded-t-2xl flex flex-col max-h-[92vh] sm:max-h-[80vh] animate-fade-in">
+        {/* Drag handle (mobile) */}
+        <div className="flex justify-center pt-2 pb-0 sm:hidden">
+          <div className="w-8 h-1 rounded-full bg-[var(--border-medium)]" />
+        </div>
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-light)]">
-          <h2 className="text-[17px] font-medium text-[var(--text-primary)]">{t.settingsTitle}</h2>
-          <button onClick={onClose} className="size-7 flex items-center justify-center text-[var(--text-tertiary)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition">
-            <X className="size-4" />
+        <div className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b border-[var(--border-light)]">
+          <h2 className="text-base sm:text-[17px] font-medium text-[var(--text-primary)]">{t.settingsTitle}</h2>
+          <button onClick={onClose} className="size-9 sm:size-7 flex items-center justify-center text-[var(--text-tertiary)] active:bg-[var(--bg-alt)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition">
+            <X className="size-5 sm:size-4" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-6">
           {/* Theme */}
           <section>
             <h3 className="text-sm font-medium text-[var(--text-primary)] mb-1">{t.theme}</h3>
@@ -191,35 +198,59 @@ export default function SettingsPanel({
                   {accounts.length > 1 && (
                     <button
                       onClick={() => onRemoveAccount(account.email)}
-                      className="size-7 flex items-center justify-center text-[var(--text-placeholder)] hover:text-[var(--danger)] hover:bg-red-50 rounded-[4px] t-transition dark:hover:bg-red-900/20"
+                      className="size-9 sm:size-7 flex items-center justify-center text-[var(--text-placeholder)] hover:text-[var(--danger)] active:bg-red-50 hover:bg-red-50 rounded-[4px] t-transition dark:hover:bg-red-900/20 dark:active:bg-red-900/20"
                     >
-                      <Trash2 className="size-3.5" />
+                      <Trash2 className="size-4 sm:size-3.5" />
                     </button>
                   )}
                 </div>
               ))}
               <button
                 onClick={onAddAccount}
-                className="w-full flex items-center justify-center gap-2 h-10 text-sm text-[var(--text-tertiary)] bg-[var(--bg-alt)] hover:bg-[var(--bg-hover)] rounded-[4px] t-transition"
+                className="w-full flex items-center justify-center gap-2 h-11 sm:h-10 text-sm text-[var(--text-tertiary)] bg-[var(--bg-alt)] hover:bg-[var(--bg-hover)] active:bg-[var(--bg-hover)] rounded-[4px] t-transition"
               >
                 <Plus className="size-4" />
                 {t.addAccount}
               </button>
             </div>
           </section>
+
+          {/* Language & Logout (mobile-accessible) */}
+          {(onLangChange || onLogout) && (
+            <section className="space-y-2">
+              {onLangChange && (
+                <button
+                  onClick={() => onLangChange(lang === "en" ? "zh" : "en")}
+                  className="w-full flex items-center gap-3 h-11 sm:h-10 px-3 text-sm text-[var(--text-body)] bg-[var(--bg-alt)] hover:bg-[var(--bg-hover)] active:bg-[var(--bg-hover)] rounded-[4px] t-transition"
+                >
+                  <Languages className="size-4 text-[var(--text-tertiary)]" />
+                  {lang === "en" ? "切换到中文" : "Switch to English"}
+                </button>
+              )}
+              {onLogout && (
+                <button
+                  onClick={onLogout}
+                  className="w-full flex items-center gap-3 h-11 sm:h-10 px-3 text-sm text-red-500 bg-[var(--bg-alt)] hover:bg-red-50 active:bg-red-50 dark:hover:bg-red-900/10 dark:active:bg-red-900/10 rounded-[4px] t-transition"
+                >
+                  <LogOut className="size-4" />
+                  {t.logout}
+                </button>
+              )}
+            </section>
+          )}
         </div>
 
         {/* Footer */}
-        <div className="flex gap-2 px-5 py-4 border-t border-[var(--border-light)]">
+        <div className="flex gap-2 px-4 sm:px-5 py-3 sm:py-4 border-t border-[var(--border-light)] safe-area-pb">
           <button
             onClick={handleSave}
-            className="flex-1 h-10 text-sm font-medium text-white bg-[var(--blue)] hover:bg-[var(--blue-hover)] rounded-[4px] t-btn-transition"
+            className="flex-1 h-11 sm:h-10 text-sm font-medium text-white bg-[var(--blue)] hover:bg-[var(--blue-hover)] rounded-[4px] t-btn-transition"
           >
             {t.saveSettings}
           </button>
           <button
             onClick={onClose}
-            className="px-4 h-10 text-sm text-[var(--text-tertiary)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition"
+            className="px-4 h-11 sm:h-10 text-sm text-[var(--text-tertiary)] hover:bg-[var(--bg-alt)] active:bg-[var(--bg-alt)] rounded-[4px] t-transition"
           >
             {t.cancel}
           </button>

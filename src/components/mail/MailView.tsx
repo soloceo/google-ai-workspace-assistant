@@ -283,7 +283,7 @@ export default function MailView({
       {showList && (
         <div className={`${isMobile ? "w-full" : "w-[380px] lg:w-[420px]"} flex flex-col border-r border-[var(--border-light)] flex-shrink-0`}>
           {/* Search bar */}
-          <div className="p-3 border-b border-[var(--border-light)]">
+          <div className="px-3 py-2 border-b border-[var(--border-light)]">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-[var(--text-placeholder)]" />
               <input
@@ -292,7 +292,7 @@ export default function MailView({
                 onChange={e => setSearchInput(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") onSearch(searchInput); }}
                 placeholder={t.searchPlaceholder.replace("{tab}", t.mail)}
-                className="w-full h-9 pl-9 pr-3 text-sm bg-[var(--bg-alt)] border-none rounded-[4px] text-[var(--text-body)] placeholder:text-[var(--text-placeholder)] focus:outline-none focus:ring-2 focus:ring-[var(--blue)] t-transition"
+                className={`w-full ${isMobile ? "h-10" : "h-9"} pl-9 pr-3 text-sm bg-[var(--bg-alt)] border-none rounded-[4px] text-[var(--text-body)] placeholder:text-[var(--text-placeholder)] focus:outline-none focus:ring-2 focus:ring-[var(--blue)] t-transition`}
               />
             </div>
           </div>
@@ -328,33 +328,35 @@ export default function MailView({
                     <button
                       key={email.id}
                       onClick={() => setSelectedEmail(email)}
-                      className={`w-full text-left px-4 py-3 border-b border-[var(--border-light)] t-transition ${
+                      className={`w-full text-left px-3 sm:px-4 py-3 sm:py-3 border-b border-[var(--border-light)] t-transition active:bg-[var(--bg-active)] ${
                         isSelected
                           ? "bg-[var(--blue-light)]"
                           : "hover:bg-[var(--bg-hover)]"
                       }`}
                     >
-                      <div className="flex items-start gap-3">
-                        {/* Account color dot */}
-                        {email.accountColor && (
-                          <div
-                            className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0"
-                            style={{ backgroundColor: email.accountColor }}
-                          />
-                        )}
+                      <div className="flex items-start gap-2.5">
+                        {/* Account color dot + unread indicator */}
+                        <div className="flex flex-col items-center gap-1 mt-1 flex-shrink-0">
+                          {email.accountColor && (
+                            <div
+                              className="w-2 h-2 rounded-full"
+                              style={{ backgroundColor: email.accountColor }}
+                            />
+                          )}
+                        </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
-                            <span className={`text-sm truncate ${isUnread ? "font-medium text-[var(--text-primary)]" : "text-[var(--text-body)]"}`}>
+                            <span className={`text-[13px] sm:text-sm truncate ${isUnread ? "font-semibold text-[var(--text-primary)]" : "text-[var(--text-body)]"}`}>
                               {senderName}
                             </span>
-                            <span className="text-xs text-[var(--text-placeholder)] flex-shrink-0">
+                            <span className="text-[11px] text-[var(--text-placeholder)] flex-shrink-0">
                               {formatDate(date, lang)}
                             </span>
                           </div>
-                          <p className={`text-sm truncate mt-0.5 ${isUnread ? "font-medium text-[var(--text-primary)]" : "text-[var(--text-body)]"}`}>
+                          <p className={`text-[13px] sm:text-sm truncate mt-0.5 ${isUnread ? "font-medium text-[var(--text-primary)]" : "text-[var(--text-body)]"}`}>
                             {subject}
                           </p>
-                          <p className="text-xs text-[var(--text-tertiary)] truncate mt-0.5">
+                          <p className="text-xs text-[var(--text-tertiary)] truncate mt-0.5 leading-relaxed">
                             {email.snippet}
                           </p>
                         </div>
@@ -376,43 +378,43 @@ export default function MailView({
       {(selectedEmail && (!isMobile || showDetail)) ? (
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Detail header */}
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--border-light)] flex-shrink-0">
+          <div className="flex items-center gap-1.5 px-3 sm:px-4 py-2 border-b border-[var(--border-light)] flex-shrink-0">
             {isMobile && (
               <button
                 onClick={() => setSelectedEmail(null)}
-                className="size-8 flex items-center justify-center text-[var(--text-tertiary)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition"
+                className="size-10 flex items-center justify-center text-[var(--text-tertiary)] active:bg-[var(--bg-alt)] rounded-[4px] t-transition -ml-1"
               >
-                <ArrowLeft className="size-4" />
+                <ArrowLeft className="size-5" />
               </button>
             )}
             <div className="flex-1" />
 
             {/* Actions */}
             <button onClick={() => { onArchive(selectedEmail.id, selectedEmail.accountEmail); setSelectedEmail(null); }}
-              className="size-8 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition"
+              className={`${isMobile ? "size-10" : "size-8"} flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] active:bg-[var(--bg-alt)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition`}
               title={t.archive}>
-              <Archive className="size-4" />
+              <Archive className={isMobile ? "size-[18px]" : "size-4"} />
             </button>
             <button onClick={() => { onTrash(selectedEmail.id, selectedEmail.accountEmail); setSelectedEmail(null); }}
-              className="size-8 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition"
+              className={`${isMobile ? "size-10" : "size-8"} flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] active:bg-[var(--bg-alt)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition`}
               title={t.trash}>
-              <Trash2 className="size-4" />
+              <Trash2 className={isMobile ? "size-[18px]" : "size-4"} />
             </button>
             <button onClick={() => onToggleRead(selectedEmail.id, selectedEmail.accountEmail, selectedEmail.labelIds?.includes("UNREAD"))}
-              className="size-8 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition"
+              className={`${isMobile ? "size-10" : "size-8"} flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] active:bg-[var(--bg-alt)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition`}
               title={selectedEmail.labelIds?.includes("UNREAD") ? t.markRead : t.markUnread}>
-              {selectedEmail.labelIds?.includes("UNREAD") ? <MailOpen className="size-4" /> : <MailIcon className="size-4" />}
+              {selectedEmail.labelIds?.includes("UNREAD") ? <MailOpen className={isMobile ? "size-[18px]" : "size-4"} /> : <MailIcon className={isMobile ? "size-[18px]" : "size-4"} />}
             </button>
             <button onClick={() => onReply(selectedEmail)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-[var(--blue)] hover:bg-[var(--blue-hover)] rounded-[4px] t-btn-transition"
+              className={`flex items-center gap-1.5 ${isMobile ? "size-10 justify-center" : "px-3 py-1.5"} text-sm font-medium text-white bg-[var(--blue)] hover:bg-[var(--blue-hover)] rounded-[4px] t-btn-transition`}
             >
-              <Send className="size-3.5" />
-              {t.reply}
+              <Send className={isMobile ? "size-[18px]" : "size-3.5"} />
+              {!isMobile && t.reply}
             </button>
           </div>
 
           {/* Detail content */}
-          <div className="flex-1 overflow-y-auto px-6 py-5">
+          <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-5">
             {/* Subject */}
             <h1 className="text-xl font-medium text-[var(--text-primary)] mb-4">
               {getHeader(selectedEmail.payload, "Subject")}

@@ -144,30 +144,38 @@ export default function CalendarView({
 
   const today = new Date();
 
+  // Mobile detection
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+
   return (
     <div className="h-full flex flex-col lg:flex-row">
       {/* ── Calendar Grid ── */}
       <div className="lg:w-[380px] flex-shrink-0 border-r border-[var(--border-light)] flex flex-col">
         {/* Month nav */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-light)]">
-          <button onClick={prevMonth} className="size-8 flex items-center justify-center text-[var(--text-tertiary)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition">
-            <ChevronLeft className="size-4" />
+        <div className="flex items-center justify-between px-3 sm:px-4 py-2 border-b border-[var(--border-light)]">
+          <button onClick={prevMonth} className="size-10 sm:size-8 flex items-center justify-center text-[var(--text-tertiary)] active:bg-[var(--bg-alt)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition">
+            <ChevronLeft className="size-5 sm:size-4" />
           </button>
           <span className="text-sm font-medium text-[var(--text-primary)]">{monthName}</span>
-          <button onClick={nextMonth} className="size-8 flex items-center justify-center text-[var(--text-tertiary)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition">
-            <ChevronRight className="size-4" />
+          <button onClick={nextMonth} className="size-10 sm:size-8 flex items-center justify-center text-[var(--text-tertiary)] active:bg-[var(--bg-alt)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition">
+            <ChevronRight className="size-5 sm:size-4" />
           </button>
         </div>
 
         {/* Weekday headers */}
-        <div className="grid grid-cols-7 px-2 py-2">
+        <div className="grid grid-cols-7 px-1 sm:px-2 py-1.5">
           {weekDays.map(d => (
-            <div key={d} className="text-center text-xs font-medium text-[var(--text-placeholder)] py-1">{d}</div>
+            <div key={d} className="text-center text-[11px] sm:text-xs font-medium text-[var(--text-placeholder)] py-0.5">{d}</div>
           ))}
         </div>
 
         {/* Day cells */}
-        <div className="grid grid-cols-7 px-2 pb-3 flex-1">
+        <div className="grid grid-cols-7 px-1 sm:px-2 pb-2">
           {days.map((day, i) => {
             if (day === null) return <div key={i} />;
             const dateObj = new Date(year, month, day);
@@ -179,7 +187,7 @@ export default function CalendarView({
               <button
                 key={i}
                 onClick={() => setSelectedDate(dateObj)}
-                className={`relative flex flex-col items-center py-1.5 rounded-[4px] t-transition ${
+                className={`relative flex flex-col items-center justify-center min-h-[40px] sm:min-h-[36px] rounded-[4px] t-transition active:scale-95 ${
                   isSelected
                     ? "bg-[var(--blue)] text-white"
                     : isToday
@@ -187,7 +195,7 @@ export default function CalendarView({
                     : "text-[var(--text-body)] hover:bg-[var(--bg-alt)]"
                 }`}
               >
-                <span className="text-sm">{day}</span>
+                <span className="text-[13px] sm:text-sm">{day}</span>
                 {dayEvents.length > 0 && (
                   <div className="flex gap-0.5 mt-0.5">
                     {dayEvents.slice(0, 3).map((ev, j) => (
@@ -203,38 +211,21 @@ export default function CalendarView({
             );
           })}
         </div>
-
-        {/* Create button for mobile */}
-        <div className="p-3 border-t border-[var(--border-light)] lg:hidden">
-          <button
-            onClick={openCreateModal}
-            className="w-full flex items-center justify-center gap-2 h-10 text-sm font-medium text-white bg-[var(--blue)] hover:bg-[var(--blue-hover)] rounded-[4px] t-btn-transition"
-          >
-            <Plus className="size-4" />
-            {t.newEvent}
-          </button>
-        </div>
       </div>
 
       {/* ── Events Panel ── */}
       <div className="flex-1 overflow-y-auto">
-        <div className="px-5 py-4">
-          <div className="flex items-center justify-between mb-4">
+        <div className="px-3 sm:px-5 py-3 sm:py-4">
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
             <h2 className="text-sm font-medium text-[var(--text-primary)]">
               {selectedDate.toLocaleDateString(lang === "zh" ? "zh-CN" : "en-US", { weekday: "long", month: "long", day: "numeric" })}
             </h2>
             <button
-              onClick={() => {
-                const d = selectedDate;
-                setNewStart(toLocalDatetimeString(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 9, 0)));
-                setNewEnd(toLocalDatetimeString(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 10, 0)));
-                setNewAccount(sendFromAccount);
-                setShowCreateModal(true);
-              }}
-              className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-[var(--blue)] hover:bg-[var(--blue-hover)] rounded-[4px] t-btn-transition"
+              onClick={openCreateModal}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-[var(--blue)] hover:bg-[var(--blue-hover)] rounded-[4px] t-btn-transition"
             >
               <Plus className="size-4" />
-              {t.newEvent}
+              {!isMobile && t.newEvent}
             </button>
           </div>
 
@@ -313,14 +304,14 @@ export default function CalendarView({
                             <p className="mt-2 text-xs text-[var(--text-tertiary)]">{event.description}</p>
                           )}
                           {/* Actions */}
-                          <div className="flex gap-1 mt-2 opacity-0 group-hover:opacity-100 t-transition">
+                          <div className={`flex gap-1 mt-2 ${isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100"} t-transition`}>
                             <button onClick={() => setEditingEvent({ ...event })}
-                              className="size-7 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-[4px] t-transition">
-                              <Pencil className="size-3" />
+                              className="size-9 sm:size-7 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] active:bg-[var(--bg-hover)] hover:bg-[var(--bg-hover)] rounded-[4px] t-transition">
+                              <Pencil className="size-4 sm:size-3" />
                             </button>
                             <button onClick={() => onDeleteEvent(event.id)}
-                              className="size-7 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--danger)] hover:bg-red-50 rounded-[4px] t-transition dark:hover:bg-red-900/20">
-                              <Trash2 className="size-3" />
+                              className="size-9 sm:size-7 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--danger)] active:bg-red-50 hover:bg-red-50 rounded-[4px] t-transition dark:hover:bg-red-900/20 dark:active:bg-red-900/20">
+                              <Trash2 className="size-4 sm:size-3" />
                             </button>
                           </div>
                         </>

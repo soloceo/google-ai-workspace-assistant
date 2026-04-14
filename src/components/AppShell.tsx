@@ -849,13 +849,16 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
       {/* ── Right Content Area ── */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* ── Top Bar ── */}
-        <header className="h-12 flex items-center justify-between px-4 border-b border-[var(--border-light)] bg-[var(--frost)] backdrop-blur-sm flex-shrink-0 z-20">
-          {/* Mobile: logo + app name */}
+        <header className={`${isMobile ? "h-11" : "h-12"} flex items-center justify-between px-3 sm:px-4 border-b border-[var(--border-light)] bg-[var(--frost)] backdrop-blur-sm flex-shrink-0 z-20`}>
+          {/* Mobile: logo + tab title */}
           {isMobile && (
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 bg-[var(--blue)] rounded-[4px] flex items-center justify-center flex-shrink-0">
                 <Sparkles className="size-4 text-white" />
               </div>
+              <h1 className="text-sm font-semibold text-[var(--text-primary)]">
+                {tabs.find(t => t.id === activeTab)?.label}
+              </h1>
             </div>
           )}
 
@@ -867,25 +870,23 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
           )}
 
           <div className="flex items-center gap-1">
-            {/* Compose button */}
+            {/* Compose / Create button */}
             {activeTab === "mail" && (
               <button
                 onClick={() => { setComposeReplyTo(null); setShowCompose(true); }}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-[var(--blue)] hover:bg-[var(--blue-hover)] rounded-[4px] t-btn-transition"
+                className={`flex items-center gap-1.5 ${isMobile ? "size-9 justify-center" : "px-3 py-1.5"} text-sm font-medium text-white bg-[var(--blue)] hover:bg-[var(--blue-hover)] rounded-[4px] t-btn-transition`}
               >
                 <Plus className="size-4" />
-                <span className="hidden sm:inline">{t.compose}</span>
+                {!isMobile && <span>{t.compose}</span>}
               </button>
             )}
             {activeTab === "calendar" && (
               <button
-                onClick={() => {
-                  calendarCreateRef.current?.();
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-[var(--blue)] hover:bg-[var(--blue-hover)] rounded-[4px] t-btn-transition"
+                onClick={() => { calendarCreateRef.current?.(); }}
+                className={`flex items-center gap-1.5 ${isMobile ? "size-9 justify-center" : "px-3 py-1.5"} text-sm font-medium text-white bg-[var(--blue)] hover:bg-[var(--blue-hover)] rounded-[4px] t-btn-transition`}
               >
                 <Plus className="size-4" />
-                <span className="hidden sm:inline">{t.newEvent}</span>
+                {!isMobile && <span>{t.newEvent}</span>}
               </button>
             )}
 
@@ -894,7 +895,7 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
               <select
                 value={accountFilter}
                 onChange={e => setAccountFilter(e.target.value)}
-                className="h-8 px-2 text-sm bg-transparent border border-[var(--border-light)] rounded-[4px] text-[var(--text-body)] t-transition"
+                className={`${isMobile ? "h-9 px-1.5 text-xs max-w-[100px]" : "h-8 px-2 text-sm"} bg-transparent border border-[var(--border-light)] rounded-[4px] text-[var(--text-body)] t-transition`}
               >
                 <option value="all">{t.allAccounts}</option>
                 {profile.accounts.map(a => (
@@ -903,27 +904,14 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
               </select>
             )}
 
-            {/* Mobile-only: language / settings / logout */}
+            {/* Mobile-only: settings / logout */}
             {isMobile && (
               <>
                 <button
-                  onClick={() => onLangChange(lang === "en" ? "zh" : "en")}
-                  className="size-8 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition"
-                  title={lang === "en" ? "中文" : "English"}
-                >
-                  <Languages className="size-4" />
-                </button>
-                <button
                   onClick={() => setShowSettings(true)}
-                  className="size-8 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition"
+                  className="size-9 flex items-center justify-center text-[var(--text-tertiary)] active:bg-[var(--bg-alt)] rounded-[4px] t-transition"
                 >
-                  <Settings className="size-4" />
-                </button>
-                <button
-                  onClick={handleLogout}
-                  className="size-8 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition"
-                >
-                  <LogOut className="size-4" />
+                  <Settings className="size-[18px]" />
                 </button>
               </>
             )}
@@ -1013,17 +1001,20 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
 
         {/* ── Mobile Bottom Nav ── */}
         {isMobile && (
-          <nav className="h-14 flex items-center justify-around border-t border-[var(--border-light)] bg-[var(--frost)] backdrop-blur-sm flex-shrink-0 z-20 safe-area-pb">
+          <nav className="flex items-stretch justify-around border-t border-[var(--border-light)] bg-[var(--frost)] backdrop-blur-sm flex-shrink-0 z-20 safe-area-pb">
             {tabs.map(({ id, icon: Icon, label }) => (
               <button
                 key={id}
                 onClick={() => setActiveTab(id)}
-                className={`flex flex-col items-center gap-0.5 px-3 py-1 t-transition ${
-                  activeTab === id ? "text-[var(--blue)]" : "text-[var(--text-tertiary)]"
+                className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 min-h-[52px] t-transition relative active:bg-[var(--bg-alt)] ${
+                  activeTab === id ? "text-[var(--blue)]" : "text-[var(--text-quaternary)]"
                 }`}
               >
-                <Icon className="size-5" />
-                <span className="text-[10px] font-medium">{label}</span>
+                {activeTab === id && (
+                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-5 h-[2px] bg-[var(--blue)] rounded-full" />
+                )}
+                <Icon className="size-[22px]" />
+                <span className="text-[10px] font-medium leading-none">{label}</span>
               </button>
             ))}
           </nav>
@@ -1043,6 +1034,8 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
           onAddAccount={handleAddAccount}
           onRemoveAccount={handleRemoveAccount}
           onClose={() => setShowSettings(false)}
+          onLangChange={onLangChange}
+          onLogout={handleLogout}
         />
       )}
 

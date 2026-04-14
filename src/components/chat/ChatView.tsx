@@ -259,14 +259,14 @@ export default function ChatView({ isDemo, lang, geminiApiKey, aiModel, workspac
       <div className="flex-1 overflow-y-auto">
         {messages.length === 0 ? (
           <div className="h-full overflow-y-auto">
-            <div className="max-w-xl mx-auto px-4 py-6 pb-16">
+            <div className="max-w-xl mx-auto px-3 sm:px-4 py-4 sm:py-6 pb-8 sm:pb-16">
               {/* Hero */}
-              <div className="text-center mb-6">
-                <div className="w-14 h-14 rounded-2xl bg-[var(--blue-light)] flex items-center justify-center mx-auto mb-4">
-                  <Sparkles className="size-7 text-[var(--blue)]" />
+              <div className="text-center mb-4 sm:mb-6">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[var(--blue-light)] flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                  <Sparkles className="size-6 sm:size-7 text-[var(--blue)]" />
                 </div>
-                <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-1">{t.aiWelcomeTitle}</h2>
-                <p className="text-sm text-[var(--text-tertiary)] leading-relaxed max-w-md mx-auto">{t.aiWelcomeSubtitle}</p>
+                <h2 className="text-base sm:text-lg font-semibold text-[var(--text-primary)] mb-1">{t.aiWelcomeTitle}</h2>
+                <p className="text-[13px] sm:text-sm text-[var(--text-tertiary)] leading-relaxed max-w-md mx-auto">{t.aiWelcomeSubtitle}</p>
               </div>
 
               {/* API Key Banner */}
@@ -318,17 +318,17 @@ export default function ChatView({ isDemo, lang, geminiApiKey, aiModel, workspac
             </div>
           </div>
         ) : (
-          <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
+          <div className="max-w-2xl mx-auto px-3 sm:px-4 py-3 sm:py-4 space-y-3 sm:space-y-4">
             {messages.map(msg => (
-              <div key={msg.id} className={`flex gap-3 animate-fade-in ${msg.role === "user" ? "justify-end" : ""}`}>
+              <div key={msg.id} className={`flex gap-2 sm:gap-3 animate-fade-in ${msg.role === "user" ? "justify-end" : ""}`}>
                 {msg.role === "assistant" && (
                   <div className="w-7 h-7 rounded-full bg-[var(--blue-light)] flex items-center justify-center flex-shrink-0 mt-0.5">
                     <Bot className="size-4 text-[var(--blue)]" />
                   </div>
                 )}
-                <div className={`max-w-[80%] ${
+                <div className={`max-w-[85%] sm:max-w-[80%] ${
                   msg.role === "user"
-                    ? "bg-[var(--blue)] text-white px-4 py-2.5 rounded-[4px]"
+                    ? "bg-[var(--blue)] text-white px-3.5 sm:px-4 py-2.5 rounded-2xl sm:rounded-[4px]"
                     : "text-[var(--text-body)]"
                 }`}>
                   {msg.role === "assistant" ? (
@@ -384,15 +384,15 @@ export default function ChatView({ isDemo, lang, geminiApiKey, aiModel, workspac
       </div>
 
       {/* ── Input ── */}
-      <div className="border-t border-[var(--border-light)] px-4 py-3">
-        <div className="max-w-2xl mx-auto flex items-center gap-2">
+      <div className="border-t border-[var(--border-light)] px-3 sm:px-4 py-2 sm:py-3 safe-area-pb">
+        <div className="max-w-2xl mx-auto flex items-center gap-1.5 sm:gap-2">
           {messages.length > 0 && (
             <button
               onClick={clearChat}
-              className="size-9 flex items-center justify-center text-[var(--text-placeholder)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition flex-shrink-0"
+              className="size-10 sm:size-9 flex items-center justify-center text-[var(--text-placeholder)] hover:text-[var(--text-primary)] active:bg-[var(--bg-alt)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition flex-shrink-0"
               title={t.clearChat}
             >
-              <Trash2 className="size-4" />
+              <Trash2 className="size-[18px] sm:size-4" />
             </button>
           )}
           <div className="flex-1 relative">
@@ -403,12 +403,12 @@ export default function ChatView({ isDemo, lang, geminiApiKey, aiModel, workspac
               onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !streaming) sendMessage(input); }}
               placeholder={hasApiKey ? t.aiTryAsking : t.apiKeyMissing}
               disabled={streaming || !hasApiKey}
-              className="w-full h-10 pl-4 pr-11 text-sm bg-[var(--bg-alt)] border-none rounded-[4px] text-[var(--text-body)] placeholder:text-[var(--text-placeholder)] focus:outline-none focus:ring-2 focus:ring-[var(--blue)] t-transition disabled:opacity-50"
+              className="w-full h-11 sm:h-10 pl-4 pr-12 text-sm bg-[var(--bg-alt)] border-none rounded-full sm:rounded-[4px] text-[var(--text-body)] placeholder:text-[var(--text-placeholder)] focus:outline-none focus:ring-2 focus:ring-[var(--blue)] t-transition disabled:opacity-50"
             />
             <button
               onClick={() => sendMessage(input)}
               disabled={streaming || !input.trim() || !hasApiKey}
-              className="absolute right-1 top-1/2 -translate-y-1/2 size-8 flex items-center justify-center text-[var(--blue)] hover:bg-[var(--blue-light)] rounded-[4px] t-transition disabled:opacity-30"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 size-8 flex items-center justify-center text-white bg-[var(--blue)] rounded-full sm:rounded-[4px] t-transition disabled:opacity-30 disabled:bg-[var(--text-placeholder)]"
             >
               {streaming ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
             </button>
@@ -417,13 +417,13 @@ export default function ChatView({ isDemo, lang, geminiApiKey, aiModel, workspac
 
         {/* Quick chips when there are messages */}
         {messages.length > 0 && (
-          <div className="max-w-2xl mx-auto flex flex-wrap gap-1.5 mt-2">
+          <div className="max-w-2xl mx-auto flex gap-1.5 mt-2 overflow-x-auto no-scrollbar">
             {quickChips.map(chip => (
               <button
                 key={chip.label}
                 onClick={() => sendMessage(chip.prompt)}
                 disabled={streaming}
-                className="px-2 py-1 text-xs text-[var(--text-tertiary)] bg-[var(--bg-alt)] hover:bg-[var(--bg-active)] rounded-[4px] t-transition disabled:opacity-50"
+                className="px-2.5 py-1.5 text-xs text-[var(--text-tertiary)] bg-[var(--bg-alt)] hover:bg-[var(--bg-active)] active:bg-[var(--bg-active)] rounded-full sm:rounded-[4px] t-transition disabled:opacity-50 whitespace-nowrap flex-shrink-0"
               >
                 {chip.label}
               </button>

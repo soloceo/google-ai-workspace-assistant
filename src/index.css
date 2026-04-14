@@ -207,6 +207,12 @@
   }
 }
 
+/* ── Mobile Utilities ─────────────────────────────────────── */
+
+/* Hide scrollbar but keep scrolling */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
 /* ── Mobile Viewport Fix ───────────────────────────────────── */
 
 /* Fallback for browsers that don't support dvh */
