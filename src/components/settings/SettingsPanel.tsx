@@ -34,9 +34,18 @@ export default function SettingsPanel({
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<"success" | "failed" | null>(null);
 
+  const hasUnsavedChanges = aiModel !== settings.aiModel || signature !== settings.signature || theme !== settings.theme || apiKey !== geminiApiKey;
+
   const handleSave = () => {
     onSave({ aiModel, signature, theme });
     if (apiKey !== geminiApiKey) onSaveApiKey(apiKey);
+    onClose();
+  };
+
+  const handleClose = () => {
+    if (hasUnsavedChanges) {
+      if (!confirm(lang === "en" ? "You have unsaved changes. Discard?" : "有未保存的更改，确定放弃吗？")) return;
+    }
     onClose();
   };
 
@@ -68,7 +77,7 @@ export default function SettingsPanel({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={handleClose} />
 
       <div className="relative w-full sm:max-w-md bg-[var(--bg)] sm:rounded-[4px] rounded-t-2xl flex flex-col max-h-[92vh] sm:max-h-[80vh] animate-fade-in">
         {/* Drag handle (mobile) */}
@@ -78,7 +87,7 @@ export default function SettingsPanel({
         {/* Header */}
         <div className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b border-[var(--border-light)]">
           <h2 className="text-base sm:text-[17px] font-medium text-[var(--text-primary)]">{t.settingsTitle}</h2>
-          <button onClick={onClose} className="size-9 sm:size-7 flex items-center justify-center text-[var(--text-tertiary)] active:bg-[var(--bg-alt)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition">
+          <button onClick={handleClose} className="size-9 sm:size-7 flex items-center justify-center text-[var(--text-tertiary)] active:bg-[var(--bg-alt)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition">
             <X className="size-5 sm:size-4" />
           </button>
         </div>
@@ -249,7 +258,7 @@ export default function SettingsPanel({
             {t.saveSettings}
           </button>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="px-4 h-11 sm:h-10 text-sm text-[var(--text-tertiary)] hover:bg-[var(--bg-alt)] active:bg-[var(--bg-alt)] rounded-[4px] t-transition"
           >
             {t.cancel}

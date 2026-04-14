@@ -50,9 +50,16 @@ function extractJSON(text: string): object | null {
   if (start === -1) return null;
 
   let depth = 0;
+  let inString = false;
+  let escape = false;
   for (let i = start; i < text.length; i++) {
-    if (text[i] === '{') depth++;
-    else if (text[i] === '}') depth--;
+    const ch = text[i];
+    if (escape) { escape = false; continue; }
+    if (ch === '\\' && inString) { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === '{') depth++;
+    else if (ch === '}') depth--;
     if (depth === 0) {
       try {
         return JSON.parse(text.slice(start, i + 1));
@@ -619,6 +626,7 @@ export async function* chatStreamWithTools(
     context?: string;
     lang: string;
     model?: string;
+    signal?: AbortSignal;
   },
   executeAction: (name: string, args: Record<string, any>) => Promise<{ success: boolean; message: string }>,
 ): AsyncGenerator<string> {
@@ -680,6 +688,7 @@ Instructions:
   let textSoFar = '';
 
   for await (const chunk of stream) {
+    if (params.signal?.aborted) break;
     const parts = chunk.candidates?.[0]?.content?.parts || [];
     for (const part of parts) {
       if (part.functionCall) {
@@ -698,10 +707,27 @@ Instructions:
   if (functionCalls.length === 0) return;
 
   // ── Execute all tool calls ──
+  const validFunctionNames = new Set(
+    WORKSPACE_TOOLS[0].functionDeclarations.map(f => f.name)
+  );
   const modelParts: any[] = [];
   const responseParts: any[] = [];
 
   for (const call of functionCalls) {
+    if (params.signal?.aborted) break;
+
+    // Validate function name against whitelist
+    if (!validFunctionNames.has(call.name)) {
+      modelParts.push({ functionCall: { name: call.name, args: call.args } });
+      responseParts.push({
+        functionResponse: {
+          name: call.name,
+          response: { success: false, message: `Unknown function: ${call.name}` },
+        },
+      });
+      continue;
+    }
+
     const actionLabel = params.lang === 'zh'
       ? `\n\n⚡ 正在执行: **${call.name}**...\n`
       : `\n\n⚡ Executing: **${call.name}**...\n`;
@@ -718,7 +744,7 @@ Instructions:
     responseParts.push({
       functionResponse: {
         name: call.name,
-        response: actionResult,
+        response: { success: actionResult.success, message: actionResult.message },
       },
     });
   }
@@ -727,14 +753,18 @@ Instructions:
   contents.push({ role: 'model', parts: modelParts });
   contents.push({ role: 'user', parts: responseParts });
 
+  if (params.signal?.aborted) return;
+
   const followUp = await client.models.generateContentStream({
     model: params.model || 'gemini-2.5-flash',
     contents,
-    config: { tools: WORKSPACE_TOOLS },
   });
 
   for await (const chunk of followUp) {
-    const text = chunk.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (text) yield text;
+    if (params.signal?.aborted) break;
+    const parts = chunk.candidates?.[0]?.content?.parts || [];
+    for (const part of parts) {
+      if (part.text) yield part.text;
+    }
   }
 }

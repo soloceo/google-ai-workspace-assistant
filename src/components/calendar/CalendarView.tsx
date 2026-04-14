@@ -107,6 +107,11 @@ export default function CalendarView({
 
   const handleCreate = useCallback(async () => {
     if (!newSummary.trim()) return;
+    // Validate end time is after start time
+    if (newStart && newEnd && new Date(newEnd) <= new Date(newStart)) {
+      toast.error(lang === "zh" ? "结束时间必须晚于开始时间" : "End time must be after start time");
+      return;
+    }
     setSaving(true);
     try {
       await onCreateEvent({
@@ -123,7 +128,7 @@ export default function CalendarView({
     } finally {
       setSaving(false);
     }
-  }, [newSummary, newDescription, newLocation, newStart, newEnd, newAccount, onCreateEvent, t]);
+  }, [newSummary, newDescription, newLocation, newStart, newEnd, newAccount, onCreateEvent, lang, t]);
 
   const handleUpdate = useCallback(async () => {
     if (!editingEvent) return;
@@ -309,7 +314,14 @@ export default function CalendarView({
                               className="size-9 sm:size-7 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] active:bg-[var(--bg-hover)] hover:bg-[var(--bg-hover)] rounded-[4px] t-transition">
                               <Pencil className="size-4 sm:size-3" />
                             </button>
-                            <button onClick={() => onDeleteEvent(event.id)}
+                            <button onClick={async () => {
+                              if (!confirm(lang === "zh" ? "确定删除此事件吗？" : "Delete this event?")) return;
+                              try {
+                                await onDeleteEvent(event.id);
+                              } catch {
+                                toast.error(t.actionFailed);
+                              }
+                            }}
                               className="size-9 sm:size-7 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--danger)] active:bg-red-50 hover:bg-red-50 rounded-[4px] t-transition dark:hover:bg-red-900/20 dark:active:bg-red-900/20">
                               <Trash2 className="size-4 sm:size-3" />
                             </button>
@@ -327,7 +339,7 @@ export default function CalendarView({
 
       {/* ── Create Event Modal ── */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onKeyDown={e => { if (e.key === "Escape") setShowCreateModal(false); }}>
           <div className="absolute inset-0 bg-black/30" onClick={() => setShowCreateModal(false)} />
           <div className="relative w-full max-w-md bg-[var(--bg)] rounded-[4px] p-5 space-y-3 animate-fade-in">
             <div className="flex items-center justify-between">

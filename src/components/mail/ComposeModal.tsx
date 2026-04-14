@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { X, Paperclip, Sparkles, Loader2, Send, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { translations, type Language } from "../../translations";
@@ -53,6 +53,9 @@ export default function ComposeModal({
   const [showDraftInput, setShowDraftInput] = useState(false);
   const [drafting, setDrafting] = useState(false);
 
+  const attachmentsRef = useRef(attachments);
+  attachmentsRef.current = attachments;
+
   const handleAddAttachment = useCallback(() => {
     const input = document.createElement("input");
     input.type = "file";
@@ -60,7 +63,8 @@ export default function ComposeModal({
     input.onchange = () => {
       if (!input.files) return;
       const newFiles = Array.from(input.files);
-      const total = [...attachments, ...newFiles].reduce((sum, f) => sum + f.size, 0);
+      // Use ref for accurate size check (avoids stale closure)
+      const total = [...attachmentsRef.current, ...newFiles].reduce((sum, f) => sum + f.size, 0);
       if (total > 25 * 1024 * 1024) {
         toast.error(t.totalSizeLimit);
         return;
@@ -72,9 +76,10 @@ export default function ComposeModal({
         }
       }
       setAttachments(prev => [...prev, ...newFiles]);
+      input.onchange = null; // Clean up to allow GC
     };
     input.click();
-  }, [attachments, t]);
+  }, [t]);
 
   const handleSend = useCallback(async () => {
     if (!to.trim()) return;
@@ -138,10 +143,19 @@ export default function ComposeModal({
     }
   }, [geminiApiKey, draftPrompt, isReply, replyFrom, replySubject, replyTo, body, lang, aiModel, t]);
 
+  // Escape key handler
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !sending) onClose();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [sending, onClose]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
+      {/* Backdrop — guard during send */}
+      <div className="absolute inset-0 bg-black/30" onClick={() => { if (!sending) onClose(); }} />
 
       {/* Modal */}
       <div className="relative w-full sm:max-w-lg bg-[var(--bg)] sm:rounded-[4px] rounded-t-2xl flex flex-col max-h-[95vh] sm:max-h-[90vh] animate-fade-in">
@@ -154,7 +168,7 @@ export default function ComposeModal({
           <h2 className="text-sm font-medium text-[var(--text-primary)] truncate pr-2">
             {isReply ? `${t.reply}: ${replySubject}` : t.compose}
           </h2>
-          <button onClick={onClose} className="size-9 sm:size-7 flex items-center justify-center text-[var(--text-tertiary)] active:bg-[var(--bg-alt)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition flex-shrink-0">
+          <button onClick={() => { if (!sending) onClose(); }} className="size-9 sm:size-7 flex items-center justify-center text-[var(--text-tertiary)] active:bg-[var(--bg-alt)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition flex-shrink-0">
             <X className="size-5 sm:size-4" />
           </button>
         </div>
@@ -290,8 +304,8 @@ export default function ComposeModal({
             </button>
           )}
           <div className="flex-1" />
-          <button onClick={onClose}
-            className="px-3 sm:px-4 h-10 sm:h-9 text-sm text-[var(--text-tertiary)] hover:text-[var(--text-primary)] active:bg-[var(--bg-alt)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition">
+          <button onClick={() => { if (!sending) onClose(); }} disabled={sending}
+            className="px-3 sm:px-4 h-10 sm:h-9 text-sm text-[var(--text-tertiary)] hover:text-[var(--text-primary)] active:bg-[var(--bg-alt)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition disabled:opacity-50">
             {t.cancel}
           </button>
         </div>

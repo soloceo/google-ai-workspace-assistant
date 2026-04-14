@@ -222,7 +222,10 @@ export default function MailView({
         gmail.downloadAttachment(token, selectedEmail.id, att.body.attachmentId, att.mimeType)
       );
       const url = URL.createObjectURL(blob);
-      setLightbox({ src: url, type: att.mimeType.startsWith("image/") ? "image" : "pdf" });
+      setLightbox(prev => {
+        if (prev) URL.revokeObjectURL(prev.src);
+        return { src: url, type: att.mimeType.startsWith("image/") ? "image" : "pdf" };
+      });
     } catch {
       toast.error(t.downloadFailed);
     }
@@ -252,16 +255,32 @@ export default function MailView({
     }
   }, [geminiApiKey, isDemo, selectedEmail, lang, aiModel, t]);
 
-  // Infinite scroll
+  // Cleanup lightbox URL on unmount
   useEffect(() => {
-    if (!hasMore || !listRef.current) return;
+    return () => {
+      if (lightbox) URL.revokeObjectURL(lightbox.src);
+    };
+  }, []);
+
+  // Sync selectedEmail with refreshed emails array
+  useEffect(() => {
+    if (selectedEmail) {
+      const updated = emails.find(e => e.id === selectedEmail.id);
+      if (updated && updated !== selectedEmail) setSelectedEmail(updated);
+      else if (!updated) setSelectedEmail(null);
+    }
+  }, [emails]);
+
+  // Infinite scroll (guard with loading to prevent duplicate calls)
+  useEffect(() => {
+    if (!hasMore || loading || !listRef.current) return;
     const observer = new IntersectionObserver(entries => {
       if (entries[0]?.isIntersecting) onLoadMore();
     }, { root: listRef.current, threshold: 0.1 });
     const sentinel = listRef.current.querySelector("[data-sentinel]");
     if (sentinel) observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMore, onLoadMore, emails.length]);
+  }, [hasMore, loading, onLoadMore, emails.length]);
 
   // Mobile: show detail or list
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -274,8 +293,8 @@ export default function MailView({
   const showDetail = isMobile && selectedEmail;
   const showList = !isMobile || !selectedEmail;
 
-  const emailBody = useMemo(() => selectedEmail ? decodeEmailBody(selectedEmail.payload) : null, [selectedEmail?.id]);
-  const attachments = useMemo(() => selectedEmail ? getAttachments(selectedEmail.payload) : [], [selectedEmail?.id]);
+  const emailBody = useMemo(() => selectedEmail ? decodeEmailBody(selectedEmail.payload) : null, [selectedEmail]);
+  const attachments = useMemo(() => selectedEmail ? getAttachments(selectedEmail.payload) : [], [selectedEmail]);
 
   return (
     <div className="h-full flex">
@@ -473,28 +492,28 @@ export default function MailView({
                     const Icon = getFileIcon(att.mimeType);
                     const canPreview = att.mimeType?.startsWith("image/") || att.mimeType?.includes("pdf");
                     return (
-                      <div key={i} className="flex items-center gap-3 p-3 bg-[var(--bg-alt)] rounded-[4px]">
-                        <Icon className="size-5 text-[var(--text-tertiary)] flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-[var(--text-primary)] truncate">{att.filename}</p>
-                          <p className="text-xs text-[var(--text-placeholder)]">{formatFileSize(att.body?.size || 0)}</p>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {canPreview && (
-                            <button onClick={() => handlePreview(att)}
+                      <div key={i} className="bg-[var(--bg-alt)] rounded-[4px]">
+                        <div className="flex items-center gap-3 p-3">
+                          <Icon className="size-5 text-[var(--text-tertiary)] flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-[var(--text-primary)] truncate">{att.filename}</p>
+                            <p className="text-xs text-[var(--text-placeholder)]">{formatFileSize(att.body?.size || 0)}</p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {canPreview && (
+                              <button onClick={() => handlePreview(att)}
+                                className="size-7 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-[4px] t-transition"
+                                title={t.preview}>
+                                <Eye className="size-3.5" />
+                              </button>
+                            )}
+                            <button onClick={() => handleDownload(att)}
                               className="size-7 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-[4px] t-transition"
-                              title={t.preview}>
-                              <Eye className="size-3.5" />
+                              title="Download">
+                              <Download className="size-3.5" />
                             </button>
-                          )}
-                          <button onClick={() => handleDownload(att)}
-                            className="size-7 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-[4px] t-transition"
-                            title="Download">
-                            <Download className="size-3.5" />
-                          </button>
-                          {/* AI Analysis buttons */}
-                          {geminiApiKey && (
-                            <>
+                            {/* AI Analysis buttons */}
+                            {geminiApiKey && (
                               <button onClick={() => handleAttachmentAnalysis(att, "summary")}
                                 className="size-7 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--blue)] hover:bg-[var(--blue-light)] rounded-[4px] t-transition"
                                 title={t.documentSummary}>
@@ -502,15 +521,17 @@ export default function MailView({
                                   ? <Loader2 className="size-3.5 animate-spin" />
                                   : <Sparkles className="size-3.5" />}
                               </button>
-                            </>
-                          )}
+                            )}
+                          </div>
                         </div>
-                        {/* Analysis result */}
+                        {/* Analysis result — below the attachment row */}
                         {attachAnalysis[`${att.body.attachmentId}-summary`]?.result && (
-                          <div className="w-full mt-2 p-3 bg-[var(--bg)] border border-[var(--border-light)] rounded-[4px] text-sm text-[var(--text-body)]">
-                            {typeof attachAnalysis[`${att.body.attachmentId}-summary`].result === "string"
-                              ? attachAnalysis[`${att.body.attachmentId}-summary`].result
-                              : JSON.stringify(attachAnalysis[`${att.body.attachmentId}-summary`].result, null, 2)}
+                          <div className="px-3 pb-3">
+                            <div className="p-3 bg-[var(--bg)] border border-[var(--border-light)] rounded-[4px] text-sm text-[var(--text-body)]">
+                              {typeof attachAnalysis[`${att.body.attachmentId}-summary`].result === "string"
+                                ? attachAnalysis[`${att.body.attachmentId}-summary`].result
+                                : JSON.stringify(attachAnalysis[`${att.body.attachmentId}-summary`].result, null, 2)}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -572,7 +593,7 @@ export default function MailView({
           {lightbox.type === "image" ? (
             <img src={lightbox.src} alt="" className="max-w-full max-h-full object-contain rounded-[4px]" onClick={e => e.stopPropagation()} />
           ) : (
-            <iframe src={lightbox.src} className="w-full max-w-4xl h-[80vh] bg-white rounded-[4px]" onClick={e => e.stopPropagation()} />
+            <iframe src={lightbox.src} sandbox="allow-same-origin" className="w-full max-w-4xl h-[80vh] bg-white rounded-[4px]" onClick={e => e.stopPropagation()} />
           )}
         </div>
       )}

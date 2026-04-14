@@ -344,12 +344,16 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
       toast.success(params.threadId ? t.demoReplySimulated : t.demoSendSimulated);
       return;
     }
-    await authService.withFreshToken(sendFromAccount, token =>
-      gmail.sendMessage(token, params)
-    );
-    toast.success(t.actionSuccess);
-    setShowCompose(false);
-    setComposeReplyTo(null);
+    try {
+      await authService.withFreshToken(sendFromAccount, token =>
+        gmail.sendMessage(token, params)
+      );
+      toast.success(t.actionSuccess);
+      setShowCompose(false);
+      setComposeReplyTo(null);
+    } catch {
+      toast.error(t.actionFailed);
+    }
   }, [isDemo, sendFromAccount, t]);
 
   // ── Calendar Actions ──
@@ -372,17 +376,21 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
       toast.success(t.actionSuccess);
       return;
     }
-    const accounts = authService.getAccounts();
-    const acct = accounts.find(a => a.email === targetAccount);
-    const newEvent = await authService.withFreshToken(targetAccount, token =>
-      calendarService.createEvent(token, event)
-    );
-    setCalendarEvents(prev => [...prev, { ...newEvent, accountEmail: targetAccount, accountColor: acct?.color }].sort((a, b) => {
-      const tA = new Date(a.start?.dateTime || a.start?.date || 0).getTime();
-      const tB = new Date(b.start?.dateTime || b.start?.date || 0).getTime();
-      return tA - tB;
-    }));
-    toast.success(t.actionSuccess);
+    try {
+      const accounts = authService.getAccounts();
+      const acct = accounts.find(a => a.email === targetAccount);
+      const newEvent = await authService.withFreshToken(targetAccount, token =>
+        calendarService.createEvent(token, event)
+      );
+      setCalendarEvents(prev => [...prev, { ...newEvent, accountEmail: targetAccount, accountColor: acct?.color }].sort((a, b) => {
+        const tA = new Date(a.start?.dateTime || a.start?.date || 0).getTime();
+        const tB = new Date(b.start?.dateTime || b.start?.date || 0).getTime();
+        return tA - tB;
+      }));
+      toast.success(t.actionSuccess);
+    } catch {
+      toast.error(t.actionFailed);
+    }
   }, [isDemo, sendFromAccount, t]);
 
   const handleUpdateEvent = useCallback(async (eventId: string, event: { summary?: string; description?: string; location?: string; start?: string; end?: string }) => {
@@ -400,11 +408,15 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
     if (isDemo) { toast.success(t.actionSuccess); return; }
     const event = calendarEvents.find(e => e.id === eventId);
     if (!event) return;
-    await authService.withFreshToken(event.accountEmail || sendFromAccount, token =>
-      calendarService.deleteEvent(token, eventId)
-    );
-    setCalendarEvents(prev => prev.filter(e => e.id !== eventId));
-    toast.success(t.actionSuccess);
+    try {
+      await authService.withFreshToken(event.accountEmail || sendFromAccount, token =>
+        calendarService.deleteEvent(token, eventId)
+      );
+      setCalendarEvents(prev => prev.filter(e => e.id !== eventId));
+      toast.success(t.actionSuccess);
+    } catch {
+      toast.error(t.actionFailed);
+    }
   }, [isDemo, calendarEvents, sendFromAccount, t]);
 
   // ── Tasks Actions ──

@@ -134,7 +134,8 @@ export default function ChatView({ isDemo, lang, geminiApiKey, aiModel, workspac
     setStreaming(true);
 
     try {
-      const history = messagesRef.current.slice(-10).map(m => ({ role: m.role, text: m.text }));
+      // Capture history from current state (not stale ref)
+      const history = [...messages, userMsg].slice(-10).map(m => ({ role: m.role, text: m.text }));
 
       const stream = gemini.chatStreamWithTools(
         geminiApiKey,
@@ -144,6 +145,7 @@ export default function ChatView({ isDemo, lang, geminiApiKey, aiModel, workspac
           context: workspaceContext,
           lang,
           model: aiModel,
+          signal: controller.signal,
         },
         executeAction,
       );
@@ -165,9 +167,9 @@ export default function ChatView({ isDemo, lang, geminiApiKey, aiModel, workspac
         toast.error(t.aiChatError);
       }
     } finally {
-      setStreaming(false);
+      if (!controller.signal.aborted) setStreaming(false);
     }
-  }, [geminiApiKey, workspaceContext, lang, aiModel, executeAction, t]);
+  }, [geminiApiKey, workspaceContext, lang, aiModel, executeAction, messages, t]);
 
   const clearChat = useCallback(() => {
     setMessages([]);

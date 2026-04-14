@@ -207,21 +207,31 @@ export async function fetchAllAccountTasks(
 
         for (const list of lists) {
           allLists.push({ ...list, accountEmail: account.email, accountColor: account.color });
-
-          const { items } = await listTasks(account.access_token, list.id, {
-            showCompleted: opts?.showCompleted ?? true,
-            signal: opts?.signal,
-          });
-
-          for (const task of items) {
-            allTasks.push({
-              ...task,
-              accountEmail: account.email,
-              accountColor: account.color,
-              listId: list.id,
-            });
-          }
         }
+
+        // Fetch tasks for all lists in parallel
+        await Promise.all(lists.map(async (list) => {
+          // Paginate to get all tasks (API returns max 100 per page)
+          let pageToken: string | undefined;
+          do {
+            const result = await listTasks(account.access_token, list.id, {
+              showCompleted: opts?.showCompleted ?? true,
+              pageToken,
+              signal: opts?.signal,
+            });
+
+            for (const task of result.items) {
+              allTasks.push({
+                ...task,
+                accountEmail: account.email,
+                accountColor: account.color,
+                listId: list.id,
+              });
+            }
+
+            pageToken = result.nextPageToken;
+          } while (pageToken);
+        }));
       } catch (e: any) {
         if (e.name !== 'AbortError') {
           console.error(`Tasks fetch error for ${account.email}:`, e);

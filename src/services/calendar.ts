@@ -12,7 +12,7 @@ import type { StoredAccount } from '../types';
  */
 function toRfc3339(dt: string): string {
   // If already ISO (contains Z or timezone offset), use as-is
-  if (/[Z+]/.test(dt.slice(10))) return dt;
+  if (/[Z+-]/.test(dt.slice(10))) return dt;
   // datetime-local format "YYYY-MM-DDThh:mm" → parse as local and convert
   const d = new Date(dt);
   if (isNaN(d.getTime())) throw new Error(`Invalid datetime: ${dt}`);
@@ -141,25 +141,33 @@ export async function fetchAllAccountEvents(
   accounts: StoredAccount[],
   params?: {
     q?: string;
-    pageToken?: string;
+    pageTokens?: Record<string, string | null>;
     accountFilter?: string;
     signal?: AbortSignal;
   }
-): Promise<{ items: any[]; nextPageToken: string | null }> {
+): Promise<{ items: any[]; pageTokens: Record<string, string | null>; hasMore: boolean }> {
   const targets = params?.accountFilter
     ? accounts.filter((a) => a.email === params.accountFilter)
     : accounts;
 
+  const perAccountTokens = params?.pageTokens || {};
   const allEvents: any[] = [];
-  let anyNextPageToken: string | null = null;
+  const nextPageTokens: Record<string, string | null> = {};
 
   await Promise.all(
     targets.map(async (account) => {
+      // Skip accounts that returned null (no more results) on a previous page
+      const accountPageToken = perAccountTokens[account.email];
+      if (Object.keys(perAccountTokens).length > 0 && accountPageToken === null) {
+        nextPageTokens[account.email] = null;
+        return;
+      }
+
       try {
         const maxResults = targets.length > 1 ? 15 : 20;
         const result = await listEvents(account.access_token, {
           maxResults,
-          pageToken: params?.pageToken || undefined,
+          pageToken: accountPageToken || undefined,
           q: params?.q || undefined,
           signal: params?.signal,
         });
@@ -171,12 +179,10 @@ export async function fetchAllAccountEvents(
         }));
 
         allEvents.push(...events);
-
-        if (result.nextPageToken) {
-          anyNextPageToken = result.nextPageToken;
-        }
+        nextPageTokens[account.email] = result.nextPageToken || null;
       } catch (e) {
         console.error(`Calendar API error for ${account.email}:`, e);
+        nextPageTokens[account.email] = null;
       }
     })
   );
@@ -188,8 +194,11 @@ export async function fetchAllAccountEvents(
     return tA - tB;
   });
 
+  const hasMore = Object.values(nextPageTokens).some(t => t !== null);
+
   return {
     items: allEvents,
-    nextPageToken: anyNextPageToken,
+    pageTokens: nextPageTokens,
+    hasMore,
   };
 }

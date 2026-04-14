@@ -1,10 +1,33 @@
 import {
   CheckSquare, Calendar as CalendarIcon, Mail, ChevronRight,
-  Clock, FileText, Sparkles,
+  Clock, FileText, Sparkles, Loader2,
 } from "lucide-react";
 import { translations, type Language } from "../../translations";
 import type { Task, TaskList } from "../../services/tasks";
 import type { AppTab } from "../AppShell";
+
+// Extracted outside component to prevent unmount/remount on every render
+function SectionHeader({ icon: Icon, title, count, tab, onNavigate, viewAllLabel }: {
+  icon: typeof Mail; title: string; count: number; tab: AppTab;
+  onNavigate: (tab: AppTab) => void; viewAllLabel: string;
+}) {
+  return (
+    <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center gap-2">
+        <Icon className="size-4 text-[var(--blue)]" />
+        <h3 className="text-sm font-semibold text-[var(--text-primary)]">{title}</h3>
+        <span className="text-xs text-[var(--text-quaternary)]">({count})</span>
+      </div>
+      <button
+        onClick={() => onNavigate(tab)}
+        className="flex items-center gap-0.5 text-xs text-[var(--blue)] hover:underline t-transition"
+      >
+        {viewAllLabel}
+        <ChevronRight className="size-3" />
+      </button>
+    </div>
+  );
+}
 
 interface DashboardViewProps {
   emails: any[];
@@ -74,25 +97,6 @@ export default function DashboardView({
     weekday: "long", year: "numeric", month: "long", day: "numeric",
   });
 
-  // ── Section Header ──
-  const SectionHeader = ({ icon: Icon, title, count, tab }: {
-    icon: typeof Mail; title: string; count: number; tab: AppTab;
-  }) => (
-    <div className="flex items-center justify-between mb-3">
-      <div className="flex items-center gap-2">
-        <Icon className="size-4 text-[var(--blue)]" />
-        <h3 className="text-sm font-semibold text-[var(--text-primary)]">{title}</h3>
-        <span className="text-xs text-[var(--text-quaternary)]">({count})</span>
-      </div>
-      <button
-        onClick={() => onNavigate(tab)}
-        className="flex items-center gap-0.5 text-xs text-[var(--blue)] hover:underline t-transition"
-      >
-        {t.dashboardViewAll}
-        <ChevronRight className="size-3" />
-      </button>
-    </div>
-  );
 
   // ── Task due label ──
   const getDueLabel = (due: string | undefined) => {
@@ -110,6 +114,24 @@ export default function DashboardView({
       color: "text-[var(--text-tertiary)]",
     };
   };
+
+  if (loading) {
+    return (
+      <div className="h-full overflow-y-auto">
+        <div className="max-w-2xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
+          <div className="space-y-1">
+            <div className="h-6 w-48 bg-[var(--bg-alt)] rounded animate-pulse" />
+            <div className="h-4 w-64 bg-[var(--bg-alt)] rounded animate-pulse" />
+          </div>
+          <div className="h-14 bg-[var(--bg-alt)] rounded-[4px] animate-pulse" />
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
+            {[1, 2, 3].map(i => <div key={i} className="h-20 bg-[var(--bg-alt)] rounded-[4px] animate-pulse" />)}
+          </div>
+          {[1, 2, 3].map(i => <div key={i} className="h-32 bg-[var(--bg-alt)] rounded-[4px] animate-pulse" />)}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full overflow-y-auto">
@@ -172,7 +194,7 @@ export default function DashboardView({
 
         {/* ── Tasks Section ── */}
         <section>
-          <SectionHeader icon={CheckSquare} title={t.dashboardPendingTasks} count={pendingTasks.length} tab="tasks" />
+          <SectionHeader icon={CheckSquare} title={t.dashboardPendingTasks} count={pendingTasks.length} tab="tasks" onNavigate={onNavigate} viewAllLabel={t.dashboardViewAll} />
           {pendingTasks.length === 0 ? (
             <div className="py-4 text-center">
               <p className="text-sm text-[var(--text-quaternary)]">{t.noTasks}</p>
@@ -207,7 +229,7 @@ export default function DashboardView({
 
         {/* ── Calendar Section ── */}
         <section>
-          <SectionHeader icon={CalendarIcon} title={t.dashboardTodayEvents} count={todayEvents.length} tab="calendar" />
+          <SectionHeader icon={CalendarIcon} title={t.dashboardTodayEvents} count={todayEvents.length} tab="calendar" onNavigate={onNavigate} viewAllLabel={t.dashboardViewAll} />
           {todayEvents.length === 0 ? (
             <div className="py-4 text-center">
               <p className="text-sm text-[var(--text-quaternary)]">{t.noItemsFound}</p>
@@ -244,7 +266,7 @@ export default function DashboardView({
 
         {/* ── Email Section ── */}
         <section>
-          <SectionHeader icon={Mail} title={t.dashboardUnreadEmails} count={unreadEmails.length} tab="mail" />
+          <SectionHeader icon={Mail} title={t.dashboardUnreadEmails} count={unreadEmails.length} tab="mail" onNavigate={onNavigate} viewAllLabel={t.dashboardViewAll} />
           {unreadEmails.length === 0 ? (
             <div className="py-4 text-center">
               <p className="text-sm text-[var(--text-quaternary)]">{t.emptyMailHint}</p>

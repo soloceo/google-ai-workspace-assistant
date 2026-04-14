@@ -54,24 +54,24 @@ export default function TasksView({
   const selectedListId = activeListId || taskLists[0]?.id || null;
 
   // Filter tasks for active list (by listId if available, fallback to list id match)
-  const listTasks = tasks.filter(t => {
+  const listTasks = tasks.filter(task => {
     if (!selectedListId) return false;
-    return t.listId === selectedListId;
+    return task.listId === selectedListId;
   });
 
   // Split into top-level tasks vs subtasks
-  const topLevelTasks = listTasks.filter(t => !t.parent);
+  const topLevelTasks = listTasks.filter(task => !task.parent);
   const subtasksMap = new Map<string, Task[]>();
-  for (const t of listTasks) {
-    if (t.parent) {
-      const subs = subtasksMap.get(t.parent) || [];
-      subs.push(t);
-      subtasksMap.set(t.parent, subs);
+  for (const task of listTasks) {
+    if (task.parent) {
+      const subs = subtasksMap.get(task.parent) || [];
+      subs.push(task);
+      subtasksMap.set(task.parent, subs);
     }
   }
 
-  const pendingTasks = topLevelTasks.filter(t => t.status === "needsAction");
-  const completedTasks = topLevelTasks.filter(t => t.status === "completed");
+  const pendingTasks = topLevelTasks.filter(task => task.status === "needsAction");
+  const completedTasks = topLevelTasks.filter(task => task.status === "completed");
 
   // ── Create Task ──
   const handleAddTask = useCallback(() => {
@@ -105,7 +105,15 @@ export default function TasksView({
     const subs = subtasksMap.get(task.id) || [];
     const hasDue = task.due && !isCompleted;
     const dueDate = task.due ? new Date(task.due) : null;
-    const isOverdue = dueDate && dueDate < new Date() && !isCompleted;
+    // Normalize to date-only comparison to avoid timezone issues with Google Tasks dates
+    const isOverdue = (() => {
+      if (!dueDate || isCompleted) return false;
+      const todayNorm = new Date();
+      todayNorm.setHours(0, 0, 0, 0);
+      const dueNorm = new Date(dueDate);
+      dueNorm.setHours(0, 0, 0, 0);
+      return dueNorm < todayNorm;
+    })();
 
     return (
       <div key={task.id} className={isSubtask ? "ml-6 sm:ml-8" : ""}>
@@ -192,7 +200,7 @@ export default function TasksView({
 
           <div className="flex-1 overflow-y-auto py-1">
             {taskLists.map(list => {
-              const pendingCount = tasks.filter(t => t.listId === list.id && t.status === "needsAction").length;
+              const pendingCount = tasks.filter(task => task.listId === list.id && task.status === "needsAction").length;
               return (
                 <button
                   key={list.id}
@@ -278,7 +286,7 @@ export default function TasksView({
               <div className="flex items-center gap-1 px-3 py-2 border-b border-[var(--border-light)] overflow-x-auto no-scrollbar">
                 {taskLists.map(list => {
                   const isActive = selectedListId === list.id;
-                  const count = tasks.filter(t => t.listId === list.id && t.status === "needsAction").length;
+                  const count = tasks.filter(task => task.listId === list.id && task.status === "needsAction").length;
                   return (
                     <button
                       key={list.id}
