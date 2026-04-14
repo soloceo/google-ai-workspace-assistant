@@ -139,6 +139,7 @@ export default function MailView({
   const [aiLoading, setAiLoading] = useState(false);
   const [lightbox, setLightbox] = useState<{ src: string; type: string } | null>(null);
   const [attachAnalysis, setAttachAnalysis] = useState<Record<string, { loading: boolean; result: any }>>({});
+  const [loadingMore, setLoadingMore] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
   // Auto-select email when navigated from AI chat
@@ -271,16 +272,19 @@ export default function MailView({
     }
   }, [emails]);
 
-  // Infinite scroll (guard with loading to prevent duplicate calls)
+  // Infinite scroll (guard with loadingMore to prevent duplicate calls)
   useEffect(() => {
-    if (!hasMore || loading || !listRef.current) return;
+    if (!hasMore || loadingMore || !listRef.current) return;
     const observer = new IntersectionObserver(entries => {
-      if (entries[0]?.isIntersecting) onLoadMore();
+      if (entries[0]?.isIntersecting) {
+        setLoadingMore(true);
+        Promise.resolve(onLoadMore()).finally(() => setLoadingMore(false));
+      }
     }, { root: listRef.current, threshold: 0.1 });
     const sentinel = listRef.current.querySelector("[data-sentinel]");
     if (sentinel) observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMore, loading, onLoadMore, emails.length]);
+  }, [hasMore, loadingMore, onLoadMore, emails.length]);
 
   // Mobile: show detail or list
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -383,10 +387,23 @@ export default function MailView({
                     </button>
                   );
                 })}
-                {/* Sentinel for infinite scroll */}
-                {hasMore && <div data-sentinel className="h-10 flex items-center justify-center">
-                  <Loader2 className="size-4 animate-spin text-[var(--text-placeholder)]" />
-                </div>}
+                {/* Load more / sentinel */}
+                {hasMore ? (
+                  <div data-sentinel className="py-4 flex flex-col items-center gap-2">
+                    {loadingMore ? (
+                      <Loader2 className="size-4 animate-spin text-[var(--text-placeholder)]" />
+                    ) : (
+                      <button
+                        onClick={async () => { setLoadingMore(true); await onLoadMore(); setLoadingMore(false); }}
+                        className="px-4 h-9 text-sm text-[var(--blue)] hover:bg-[var(--blue-light)] rounded-[4px] t-transition"
+                      >
+                        {t.loadMore}
+                      </button>
+                    )}
+                  </div>
+                ) : emails.length >= 5 && (
+                  <p className="py-4 text-center text-xs text-[var(--text-quaternary)]">{t.noMoreResults}</p>
+                )}
               </>
             )}
           </div>
