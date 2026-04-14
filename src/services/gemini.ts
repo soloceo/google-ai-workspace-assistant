@@ -609,6 +609,17 @@ export const WORKSPACE_TOOLS = [{
         required: ["subject"],
       },
     },
+    {
+      name: "search_emails",
+      description: "Search the user's Gmail for emails matching a query. Use Gmail search syntax (e.g. 'from:alice after:2026/03/01 is:important'). Returns up to 10 results with sender, subject, date, and snippet.",
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          query: { type: Type.STRING, description: "Gmail search query (e.g. 'from:boss after:2026/03/01', 'is:important newer_than:30d', 'subject:invoice')" },
+        },
+        required: ["query"],
+      },
+    },
   ],
 }];
 
@@ -649,6 +660,7 @@ Today is ${today}.
 Instructions:
 - Answer questions based on the provided workspace data.
 - When the user asks you to DO something (create task, send email, create event, delete, etc.), use the appropriate tool/function.
+- When the user asks about emails not in the provided data (e.g. older emails, specific searches), use the search_emails tool with Gmail search syntax (e.g. "newer_than:30d is:important", "from:alice after:2026/03/01", "subject:invoice").
 - For fuzzy matching: find the closest matching item by title/subject. If ambiguous, ask the user to clarify.
 - Be concise. Use bullet points and emoji for readability.
 - After executing an action, confirm what you did.

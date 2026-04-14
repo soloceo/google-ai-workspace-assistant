@@ -779,6 +779,54 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
           setEmails(prev => prev.filter((e: any) => e.id !== email.id));
           return { success: true, message: `Email "${args.subject}" moved to trash` };
         }
+        case "search_emails": {
+          if (isDemo) {
+            // Search within mock emails
+            const q = (args.query || "").toLowerCase();
+            const results = emails.filter((e: any) => {
+              const from = e.payload?.headers?.find((h: any) => h.name?.toLowerCase() === "from")?.value || "";
+              const subject = e.payload?.headers?.find((h: any) => h.name?.toLowerCase() === "subject")?.value || "";
+              return from.toLowerCase().includes(q) || subject.toLowerCase().includes(q) || (e.snippet || "").toLowerCase().includes(q);
+            }).slice(0, 10);
+            const summaries = results.map((e: any) => {
+              const from = e.payload?.headers?.find((h: any) => h.name?.toLowerCase() === "from")?.value || "";
+              const subject = e.payload?.headers?.find((h: any) => h.name?.toLowerCase() === "subject")?.value || "";
+              const date = e.payload?.headers?.find((h: any) => h.name?.toLowerCase() === "date")?.value || "";
+              return `From: ${from} | Subject: ${subject} | Date: ${date} | Snippet: ${e.snippet || ""}`;
+            }).join("\n");
+            return { success: true, message: results.length > 0 ? `Found ${results.length} emails:\n${summaries}` : "No matching emails found in demo data" };
+          }
+          const accounts = authService.getAllValidAccounts();
+          const searchResults: string[] = [];
+          for (const account of accounts) {
+            try {
+              await authService.withFreshToken(account.email, async (token) => {
+                const listResult = await gmail.listMessages(token, { q: args.query, maxResults: 10 });
+                const detailed = await Promise.all(
+                  listResult.messages.slice(0, 10).map(async (msg) => {
+                    try {
+                      return await gmail.getMessage(token, msg.id);
+                    } catch { return null; }
+                  })
+                );
+                for (const d of detailed.filter(Boolean)) {
+                  const from = d.payload?.headers?.find((h: any) => h.name?.toLowerCase() === "from")?.value || "";
+                  const subject = d.payload?.headers?.find((h: any) => h.name?.toLowerCase() === "subject")?.value || "";
+                  const date = d.payload?.headers?.find((h: any) => h.name?.toLowerCase() === "date")?.value || "";
+                  searchResults.push(`From: ${from} | Subject: ${subject} | Date: ${date} | Snippet: ${d.snippet || ""}`);
+                }
+              });
+            } catch (e) {
+              console.error(`Search error for ${account.email}:`, e);
+            }
+          }
+          return {
+            success: true,
+            message: searchResults.length > 0
+              ? `Found ${searchResults.length} emails:\n${searchResults.join("\n")}`
+              : `No emails found matching "${args.query}"`,
+          };
+        }
         default:
           return { success: false, message: `Unknown action: ${name}` };
       }
