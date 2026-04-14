@@ -34,6 +34,20 @@ export default function SettingsPanel({
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<"success" | "failed" | null>(null);
 
+  const applyThemePreview = (t: string) => {
+    const root = document.documentElement;
+    if (t === "dark" || (t === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
+  };
+
+  const handleThemeChange = (value: string) => {
+    setTheme(value);
+    applyThemePreview(value);
+  };
+
   const hasUnsavedChanges = aiModel !== settings.aiModel || signature !== settings.signature || theme !== settings.theme || apiKey !== geminiApiKey;
 
   const handleSave = () => {
@@ -45,6 +59,7 @@ export default function SettingsPanel({
   const handleClose = () => {
     if (hasUnsavedChanges) {
       if (!confirm(lang === "en" ? "You have unsaved changes. Discard?" : "有未保存的更改，确定放弃吗？")) return;
+      applyThemePreview(settings.theme); // revert theme on discard
     }
     onClose();
   };
@@ -102,7 +117,7 @@ export default function SettingsPanel({
               {themes.map(({ value, icon: Icon, label }) => (
                 <button
                   key={value}
-                  onClick={() => setTheme(value)}
+                  onClick={() => handleThemeChange(value)}
                   className={`flex-1 flex items-center justify-center gap-2 h-10 text-sm rounded-[4px] t-transition ${
                     theme === value
                       ? "bg-[var(--blue-light)] text-[var(--blue)] font-medium"
