@@ -184,9 +184,9 @@ export default function ChatView({ isDemo, lang, geminiApiKey, aiModel, workspac
       color: "text-emerald-500",
       bg: "bg-emerald-500/10",
       examples: [
-        { text: t.aiExTask1, prompt: lang === "zh" ? "创建任务：周五前提交报告" : "Create a task: submit report by Friday" },
-        { text: t.aiExTask2, prompt: lang === "zh" ? "哪些任务已经逾期了？" : "What tasks are overdue?" },
-        { text: t.aiExTask3, prompt: lang === "zh" ? "把「修复登录问题」标为已完成" : 'Mark "Fix login bug" as done' },
+        { text: t.aiExTask1, prompt: lang === "zh" ? "这周有哪些任务要完成？" : "What tasks are due this week?" },
+        { text: t.aiExTask2, prompt: lang === "zh" ? "哪些任务已经逾期了？" : "Which tasks are overdue?" },
+        { text: t.aiExTask3, prompt: lang === "zh" ? "帮我创建一个新任务" : "Create a task for me" },
       ],
     },
     {
@@ -195,9 +195,9 @@ export default function ChatView({ isDemo, lang, geminiApiKey, aiModel, workspac
       color: "text-blue-500",
       bg: "bg-blue-500/10",
       examples: [
-        { text: t.aiExCal1, prompt: lang === "zh" ? "明天下午3点创建一个会议" : "Create a meeting tomorrow at 3pm" },
-        { text: t.aiExCal2, prompt: lang === "zh" ? "我今天有什么安排？" : "What's on my schedule today?" },
-        { text: t.aiExCal3, prompt: lang === "zh" ? "这周日程有冲突吗？" : "Any conflicts this week?" },
+        { text: t.aiExCal1, prompt: lang === "zh" ? "我今天有什么安排？" : "What's on my schedule today?" },
+        { text: t.aiExCal2, prompt: lang === "zh" ? "这周日程有冲突吗？" : "Any schedule conflicts this week?" },
+        { text: t.aiExCal3, prompt: lang === "zh" ? "帮我创建一个新日程" : "Help me create a new event" },
       ],
     },
     {
@@ -207,8 +207,8 @@ export default function ChatView({ isDemo, lang, geminiApiKey, aiModel, workspac
       bg: "bg-orange-500/10",
       examples: [
         { text: t.aiExMail1, prompt: lang === "zh" ? "总结我的未读邮件" : "Summarize my unread emails" },
-        { text: t.aiExMail2, prompt: lang === "zh" ? "帮我草拟回复 Sarah 的邮件" : "Draft a reply to Sarah's email" },
-        { text: t.aiExMail3, prompt: lang === "zh" ? "归档所有通讯类邮件" : "Archive all newsletters" },
+        { text: t.aiExMail2, prompt: lang === "zh" ? "搜索这个月重要的邮件" : "Search for important emails this month" },
+        { text: t.aiExMail3, prompt: lang === "zh" ? "有哪些紧急邮件需要处理？" : "Any urgent emails I should handle?" },
       ],
     },
     {
@@ -218,8 +218,8 @@ export default function ChatView({ isDemo, lang, geminiApiKey, aiModel, workspac
       bg: "bg-amber-500/10",
       examples: [
         { text: t.aiExAnalysis1, prompt: lang === "zh" ? "今天我应该关注什么？" : "What should I focus on today?" },
-        { text: t.aiExAnalysis2, prompt: lang === "zh" ? "帮我规划这周" : "Plan my week" },
-        { text: t.aiExAnalysis3, prompt: lang === "zh" ? "给我一个今日简报" : "Give me a daily briefing" },
+        { text: t.aiExAnalysis2, prompt: lang === "zh" ? "给我一个今日简报" : "Give me a daily briefing" },
+        { text: t.aiExAnalysis3, prompt: lang === "zh" ? "帮我规划这周的工作" : "Plan my week ahead" },
       ],
     },
   ];

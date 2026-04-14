@@ -659,9 +659,10 @@ Today is ${today}.
 
 Instructions:
 - Answer questions based on the provided workspace data.
-- When the user asks you to DO something (create task, send email, create event, delete, etc.), use the appropriate tool/function.
 - When the user asks about emails not in the provided data (e.g. older emails, specific searches), use the search_emails tool with Gmail search syntax (e.g. "newer_than:30d is:important", "from:alice after:2026/03/01", "subject:invoice").
 - For fuzzy matching: find the closest matching item by title/subject. If ambiguous, ask the user to clarify.
+- **IMPORTANT: For CREATE actions (create_task, create_event, send_email), ALWAYS confirm with the user FIRST before executing.** Present the details clearly and ask "确认创建？" or "Should I proceed?". Only call the tool AFTER the user confirms. If the user says something vague like "help me create a task", ask them for the specific details (title, date, etc.) before executing.
+- For read-only actions (search_emails) and quick actions (complete_task, delete_task, archive_email, trash_email), you may execute directly.
 - Be concise. Use bullet points and emoji for readability.
 - After executing an action, confirm what you did.
 - Respond in ${params.lang === 'zh' ? 'Chinese (Simplified)' : 'English'}.`;
