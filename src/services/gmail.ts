@@ -136,6 +136,13 @@ export async function sendMessage(
   if (!params.to?.trim()) throw new Error('Recipient (to) required');
   if (!params.body?.trim()) throw new Error('Body required');
 
+  // Sanitize header values: strip CR/LF to prevent MIME header injection
+  const sanitizeHeader = (val: string) => val.replace(/[\r\n]/g, '');
+  const safeTo = sanitizeHeader(params.to);
+  const safeCc = params.cc ? sanitizeHeader(params.cc) : '';
+  const safeBcc = params.bcc ? sanitizeHeader(params.bcc) : '';
+  const safeMessageId = params.messageId ? sanitizeHeader(params.messageId) : '';
+
   // Encode subject for UTF-8 (RFC 2047 encoded-word)
   const encoder = new TextEncoder();
   const subjectBytes = encoder.encode(params.subject || '');
@@ -152,12 +159,12 @@ export async function sendMessage(
     const boundary = `boundary_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
     const headerParts = [
-      `To: ${params.to}`,
-      params.cc ? `Cc: ${params.cc}` : '',
-      params.bcc ? `Bcc: ${params.bcc}` : '',
+      `To: ${safeTo}`,
+      safeCc ? `Cc: ${safeCc}` : '',
+      safeBcc ? `Bcc: ${safeBcc}` : '',
       `Subject: ${utf8Subject}`,
-      params.messageId ? `In-Reply-To: ${params.messageId}` : '',
-      params.messageId ? `References: ${params.messageId}` : '',
+      safeMessageId ? `In-Reply-To: ${safeMessageId}` : '',
+      safeMessageId ? `References: ${safeMessageId}` : '',
       `Content-Type: multipart/mixed; boundary="${boundary}"`,
       'MIME-Version: 1.0',
     ].filter((part) => part !== '');
@@ -177,7 +184,7 @@ export async function sendMessage(
       if (!att.filename || !att.data) continue;
       const mimeType = att.mimeType || 'application/octet-stream';
       // Sanitize filename: remove quotes, newlines, and carriage returns to prevent MIME header injection
-      const safeFilename = att.filename.replace(/["\\r\\n\r\n]/g, '_');
+      const safeFilename = att.filename.replace(/["\\\r\n]/g, '_');
       const encodedFilename = encodeURIComponent(safeFilename);
       parts.push(
         `--${boundary}\r\n` +
@@ -197,12 +204,12 @@ export async function sendMessage(
   } else {
     // Simple text message
     const headerParts = [
-      `To: ${params.to}`,
-      params.cc ? `Cc: ${params.cc}` : '',
-      params.bcc ? `Bcc: ${params.bcc}` : '',
+      `To: ${safeTo}`,
+      safeCc ? `Cc: ${safeCc}` : '',
+      safeBcc ? `Bcc: ${safeBcc}` : '',
       `Subject: ${utf8Subject}`,
-      params.messageId ? `In-Reply-To: ${params.messageId}` : '',
-      params.messageId ? `References: ${params.messageId}` : '',
+      safeMessageId ? `In-Reply-To: ${safeMessageId}` : '',
+      safeMessageId ? `References: ${safeMessageId}` : '',
       'Content-Type: text/plain; charset=utf-8',
       'MIME-Version: 1.0',
     ].filter((part) => part !== '');

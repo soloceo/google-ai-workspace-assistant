@@ -6,6 +6,7 @@ import { GOOGLE_CLIENT_ID, OAUTH_SCOPES, ACCOUNT_COLORS } from '../config';
 import type { StoredAccount } from '../types';
 
 const STORAGE_KEY = 'workspace_accounts';
+const TOKEN_EXPIRY_BUFFER_MS = 60_000; // Treat tokens as expired 60s before actual expiry
 
 // ── GIS Script Loading ──────────────────────────────────────
 
@@ -167,7 +168,7 @@ export function getValidToken(email: string): string | null {
   const accounts = getAccounts();
   const account = accounts.find((a) => a.email === email);
   if (!account) return null;
-  if (account.token_expiry <= Date.now()) return null;
+  if (account.token_expiry <= Date.now() + TOKEN_EXPIRY_BUFFER_MS) return null;
   return account.access_token;
 }
 
@@ -175,7 +176,7 @@ export function getValidToken(email: string): string | null {
  * Check if any stored account has a valid (non-expired) token.
  */
 export function isAnyAccountValid(): boolean {
-  return getAccounts().some((a) => a.token_expiry > Date.now());
+  return getAccounts().some((a) => a.token_expiry > Date.now() + TOKEN_EXPIRY_BUFFER_MS);
 }
 
 /**
@@ -183,7 +184,7 @@ export function isAnyAccountValid(): boolean {
  * Returns null if all tokens are expired.
  */
 export function getFirstValidToken(): string | null {
-  const account = getAccounts().find((a) => a.token_expiry > Date.now());
+  const account = getAccounts().find((a) => a.token_expiry > Date.now() + TOKEN_EXPIRY_BUFFER_MS);
   return account?.access_token || null;
 }
 
@@ -191,7 +192,7 @@ export function getFirstValidToken(): string | null {
  * Get all accounts with valid (non-expired) tokens.
  */
 export function getAllValidAccounts(): StoredAccount[] {
-  return getAccounts().filter((a) => a.token_expiry > Date.now());
+  return getAccounts().filter((a) => a.token_expiry > Date.now() + TOKEN_EXPIRY_BUFFER_MS);
 }
 
 // ── Login / Add Account / Logout Flows ──────────────────────
@@ -256,9 +257,53 @@ export function logout(): void {
 
 // ── Token Refresh Wrapper ───────────────────────────────────
 
+// Deduplication map: prevents multiple simultaneous GIS popups for the same account
+const refreshInFlight = new Map<string, Promise<string>>();
+
+/**
+ * Refresh the token for a given email. Deduplicates concurrent calls so only
+ * one GIS popup is shown per account at a time.
+ */
+async function refreshToken(email: string): Promise<string> {
+  const existing = refreshInFlight.get(email);
+  if (existing) return existing;
+
+  const promise = (async () => {
+    await loadGIS();
+    const tokenResponse = await requestToken({ hint: email });
+
+    if (!tokenResponse?.access_token || !tokenResponse.expires_in) {
+      throw new Error('Invalid token response from Google');
+    }
+
+    const profile = await fetchUserProfile(tokenResponse.access_token);
+    const accounts = getAccounts();
+    const prev = accounts.find((a) => a.email === email);
+    const expiresIn = Math.max(tokenResponse.expires_in, 1);
+
+    const updatedAccount: StoredAccount = {
+      email: profile.email,
+      name: profile.name,
+      picture: profile.picture,
+      access_token: tokenResponse.access_token,
+      token_expiry: Date.now() + expiresIn * 1000,
+      color: prev?.color || ACCOUNT_COLORS[accounts.length % ACCOUNT_COLORS.length],
+    };
+
+    addOrUpdateAccount(updatedAccount);
+    return updatedAccount.access_token;
+  })();
+
+  refreshInFlight.set(email, promise);
+  promise.finally(() => refreshInFlight.delete(email));
+
+  return promise;
+}
+
 /**
  * Wraps an async function that requires a token. If the function throws a 401
  * (UnauthorizedError), re-requests a token via GIS popup and retries once.
+ * Concurrent refresh requests for the same account are deduplicated.
  */
 export async function withFreshToken<T>(
   email: string,
@@ -276,30 +321,7 @@ export async function withFreshToken<T>(
     }
   }
 
-  // Token expired or 401 — re-request via GIS
-  await loadGIS();
-  const tokenResponse = await requestToken({ hint: email });
-
-  // Validate token response
-  if (!tokenResponse?.access_token || !tokenResponse.expires_in) {
-    throw new Error('Invalid token response from Google');
-  }
-
-  const profile = await fetchUserProfile(tokenResponse.access_token);
-
-  const accounts = getAccounts();
-  const existing = accounts.find((a) => a.email === email);
-  const expiresIn = Math.max(tokenResponse.expires_in, 1);
-
-  const updatedAccount: StoredAccount = {
-    email: profile.email,
-    name: profile.name,
-    picture: profile.picture,
-    access_token: tokenResponse.access_token,
-    token_expiry: Date.now() + expiresIn * 1000,
-    color: existing?.color || ACCOUNT_COLORS[accounts.length % ACCOUNT_COLORS.length],
-  };
-
-  addOrUpdateAccount(updatedAccount);
-  return fn(updatedAccount.access_token);
+  // Token expired or 401 — refresh (deduplicated) and retry
+  const freshToken = await refreshToken(email);
+  return fn(freshToken);
 }

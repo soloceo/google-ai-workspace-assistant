@@ -109,6 +109,11 @@ export default function ChatView({ isDemo, lang, geminiApiKey, aiModel, workspac
     if (!text.trim()) return;
     if (!geminiApiKey) { toast.error(t.noApiKey); return; }
 
+    // Abort any in-flight stream
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
       role: "user",
@@ -145,6 +150,7 @@ export default function ChatView({ isDemo, lang, geminiApiKey, aiModel, workspac
 
       let accumulated = "";
       for await (const chunk of stream) {
+        if (controller.signal.aborted) break;
         accumulated += chunk;
         const current = accumulated;
         setMessages(prev =>
@@ -152,7 +158,7 @@ export default function ChatView({ isDemo, lang, geminiApiKey, aiModel, workspac
         );
       }
     } catch (e: any) {
-      if (e.name !== "AbortError") {
+      if (e.name !== "AbortError" && !controller.signal.aborted) {
         setMessages(prev =>
           prev.map(m => m.id === assistantId ? { ...m, text: t.aiChatError } : m)
         );
