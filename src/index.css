@@ -338,6 +338,34 @@
   text-decoration: underline;
 }
 
+.email-inline-link {
+  color: var(--blue);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+  text-decoration-color: rgba(62, 106, 225, 0.4);
+  border-radius: 2px;
+  padding: 0 2px;
+  margin: 0 -2px;
+  transition: background 0.15s, text-decoration-color 0.15s;
+}
+.email-inline-link:hover {
+  text-decoration-style: solid;
+  text-decoration-color: var(--blue);
+  background: var(--blue-light);
+}
+.email-inline-link:active {
+  background: rgba(62, 106, 225, 0.15);
+}
+.email-inline-link svg {
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+.email-inline-link:hover svg {
+  opacity: 1;
+}
+
 .chat-markdown strong {
   font-weight: 500;
   color: var(--text-primary);

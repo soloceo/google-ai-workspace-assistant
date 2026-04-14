@@ -119,6 +119,48 @@ function renderMarkdown(text: string): string {
   return html;
 }
 
+/** Inject clickable links for email subjects mentioned inline in AI responses */
+function injectEmailLinks(html: string, emails: any[]): string {
+  if (!emails.length || !html) return html;
+
+  // Build subject → emailId map (only subjects long enough to avoid false positives)
+  const entries: { escaped: string; id: string }[] = [];
+  const seen = new Set<string>();
+  for (const email of emails) {
+    const subject = email.payload?.headers?.find((h: any) => h.name?.toLowerCase() === "subject")?.value || "";
+    if (!subject || subject.length < 4 || seen.has(email.id)) continue;
+    seen.add(email.id);
+    entries.push({ escaped: escapeHtml(subject), id: email.id });
+  }
+
+  if (!entries.length) return html;
+
+  // Sort longest first so longer subjects match before shorter substrings
+  entries.sort((a, b) => b.escaped.length - a.escaped.length);
+
+  let result = html;
+  const linked = new Set<string>();
+
+  for (const { escaped, id } of entries) {
+    if (linked.has(id)) continue;
+    // Only replace if found in the HTML (will match inside text nodes and <strong> etc.)
+    const idx = result.indexOf(escaped);
+    if (idx === -1) continue;
+
+    // Don't replace if already inside an <a> tag (check backwards for unclosed <a)
+    const before = result.slice(0, idx);
+    const lastAOpen = before.lastIndexOf("<a ");
+    const lastAClose = before.lastIndexOf("</a>");
+    if (lastAOpen > lastAClose) continue;
+
+    linked.add(id);
+    const replacement = `<a class="email-inline-link" data-email-id="${id}" role="button" tabindex="0">${escaped}<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-left:3px;margin-top:-1px"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></a>`;
+    result = result.slice(0, idx) + replacement + result.slice(idx + escaped.length);
+  }
+
+  return result;
+}
+
 export type ActionExecutor = (name: string, args: Record<string, any>) => Promise<{ success: boolean; message: string }>;
 
 interface ChatViewProps {
@@ -381,7 +423,15 @@ export default function ChatView({ isDemo, lang, geminiApiKey, aiModel, workspac
                     msg.text ? (
                       <div
                         className="chat-markdown text-sm"
-                        dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }}
+                        dangerouslySetInnerHTML={{ __html: injectEmailLinks(renderMarkdown(msg.text), emails) }}
+                        onClick={(e) => {
+                          const link = (e.target as HTMLElement).closest(".email-inline-link");
+                          if (link) {
+                            e.preventDefault();
+                            const emailId = link.getAttribute("data-email-id");
+                            if (emailId && onNavigateToEmail) onNavigateToEmail(emailId);
+                          }
+                        }}
                       />
                     ) : (
                       <div className="flex gap-1 py-2">
