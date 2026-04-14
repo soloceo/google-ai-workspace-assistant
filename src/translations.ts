@@ -213,7 +213,11 @@ export const translations = {
     aiCapRead: "Read & analyze your emails, calendar, and tasks",
     aiCapCreate: "Create tasks and calendar events",
     aiCapAction: "Send, archive, or trash emails",
-    aiCapSmart: "Smart summaries and weekly planning"
+    aiCapSmart: "Smart summaries and weekly planning",
+    checkForUpdates: "Check for Updates",
+    checkingUpdates: "Checking...",
+    appVersion: "Version",
+    upToDate: "You're up to date!",
   },
   zh: {
     appName: "Google AI 办公助手",
@@ -427,6 +431,10 @@ export const translations = {
     aiCapRead: "阅读并分析你的邮件、日历和任务",
     aiCapCreate: "创建任务和日历事件",
     aiCapAction: "发送、归档或删除邮件",
-    aiCapSmart: "智能摘要和每周规划"
+    aiCapSmart: "智能摘要和每周规划",
+    checkForUpdates: "检查更新",
+    checkingUpdates: "检查中...",
+    appVersion: "版本",
+    upToDate: "已是最新版本！",
   }
 };

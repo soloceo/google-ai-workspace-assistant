@@ -15,12 +15,12 @@ function SectionHeader({ icon: Icon, title, count, tab, onNavigate, viewAllLabel
     <div className="flex items-center justify-between mb-3">
       <div className="flex items-center gap-2">
         <Icon className="size-4 text-[var(--blue)]" />
-        <h3 className="text-sm font-semibold text-[var(--text-primary)]">{title}</h3>
-        <span className="text-xs text-[var(--text-quaternary)]">({count})</span>
+        <h3 className="text-[15px] sm:text-sm font-semibold text-[var(--text-primary)]">{title}</h3>
+        <span className="text-[13px] sm:text-xs text-[var(--text-quaternary)]">({count})</span>
       </div>
       <button
         onClick={() => onNavigate(tab)}
-        className="flex items-center gap-0.5 text-xs text-[var(--blue)] hover:underline t-transition"
+        className="flex items-center gap-0.5 text-[13px] sm:text-xs text-[var(--blue)] hover:underline t-transition"
       >
         {viewAllLabel}
         <ChevronRight className="size-3" />
@@ -139,7 +139,7 @@ export default function DashboardView({
         {/* ── Greeting ── */}
         <div className="space-y-1">
           <h1 className="text-lg sm:text-xl font-semibold text-[var(--text-primary)]">{greeting}</h1>
-          <p className="text-[13px] sm:text-sm text-[var(--text-tertiary)]">{dateStr}</p>
+          <p className="text-sm sm:text-sm text-[var(--text-tertiary)]">{dateStr}</p>
         </div>
 
         {/* ── AI Tip Card ── */}
@@ -151,9 +151,9 @@ export default function DashboardView({
             <Sparkles className="size-4 sm:size-4.5 text-[var(--blue)]" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-[13px] sm:text-sm text-[var(--text-body)] leading-snug line-clamp-2">{t.dashboardAiTip}</p>
+            <p className="text-sm text-[var(--text-body)] leading-snug line-clamp-2">{t.dashboardAiTip}</p>
           </div>
-          <span className="text-[11px] sm:text-xs font-medium text-[var(--blue)] flex-shrink-0 group-hover:underline whitespace-nowrap">
+          <span className="text-xs font-medium text-[var(--blue)] flex-shrink-0 group-hover:underline whitespace-nowrap">
             {t.dashboardAiTipAction} →
           </span>
         </button>
@@ -166,7 +166,7 @@ export default function DashboardView({
           >
             <div className="flex items-center gap-1 mb-1">
               <CheckSquare className="size-3 sm:size-3.5 text-[var(--blue)]" />
-              <span className="text-[10px] sm:text-[11px] text-[var(--text-tertiary)] font-medium leading-tight truncate">{t.dashboardPendingTasks}</span>
+              <span className="text-[11px] sm:text-[11px] text-[var(--text-tertiary)] font-medium leading-tight truncate">{t.dashboardPendingTasks}</span>
             </div>
             <p className="text-xl sm:text-2xl font-semibold text-[var(--text-primary)] tabular-nums">{pendingTasks.length}</p>
           </button>
@@ -176,7 +176,7 @@ export default function DashboardView({
           >
             <div className="flex items-center gap-1 mb-1">
               <CalendarIcon className="size-3 sm:size-3.5 text-[var(--blue)]" />
-              <span className="text-[10px] sm:text-[11px] text-[var(--text-tertiary)] font-medium leading-tight truncate">{t.dashboardTodayEvents}</span>
+              <span className="text-[11px] sm:text-[11px] text-[var(--text-tertiary)] font-medium leading-tight truncate">{t.dashboardTodayEvents}</span>
             </div>
             <p className="text-xl sm:text-2xl font-semibold text-[var(--text-primary)] tabular-nums">{todayEvents.length}</p>
           </button>
@@ -186,7 +186,7 @@ export default function DashboardView({
           >
             <div className="flex items-center gap-1 mb-1">
               <Mail className="size-3 sm:size-3.5 text-[var(--blue)]" />
-              <span className="text-[10px] sm:text-[11px] text-[var(--text-tertiary)] font-medium leading-tight truncate">{t.dashboardUnreadEmails}</span>
+              <span className="text-[11px] sm:text-[11px] text-[var(--text-tertiary)] font-medium leading-tight truncate">{t.dashboardUnreadEmails}</span>
             </div>
             <p className="text-xl sm:text-2xl font-semibold text-[var(--text-primary)] tabular-nums">{unreadEmails.length}</p>
           </button>
@@ -208,17 +208,17 @@ export default function DashboardView({
                   <div key={task.id} className="flex items-center gap-2 sm:gap-3 py-2 sm:py-2 px-2 sm:px-3 rounded-[4px] hover:bg-[var(--bg-alt)] active:bg-[var(--bg-alt)] t-transition">
                     <div className="w-4 h-4 rounded-full border-2 border-[var(--border)] flex-shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] sm:text-sm text-[var(--text-primary)] truncate">{task.title}</p>
+                      <p className="text-sm text-[var(--text-primary)] truncate">{task.title}</p>
                     </div>
                     {task.notes && <FileText className="size-3 text-[var(--text-quaternary)] flex-shrink-0" />}
-                    <span className={`text-[11px] sm:text-xs flex-shrink-0 ${due.color}`}>{due.text}</span>
+                    <span className={`text-xs flex-shrink-0 ${due.color}`}>{due.text}</span>
                   </div>
                 );
               })}
               {pendingTasks.length > 6 && (
                 <button
                   onClick={() => onNavigate("tasks")}
-                  className="w-full py-2 text-xs text-[var(--blue)] hover:underline t-transition"
+                  className="w-full py-2 text-[13px] sm:text-xs text-[var(--blue)] hover:underline t-transition"
                 >
                   +{pendingTasks.length - 6} {t.dashboardViewAll.toLowerCase()}
                 </button>
@@ -246,14 +246,14 @@ export default function DashboardView({
                   <div key={event.id} className="flex items-start gap-2.5 sm:gap-3 py-2.5 px-2 sm:px-3 rounded-[4px] hover:bg-[var(--bg-alt)] active:bg-[var(--bg-alt)] t-transition">
                     <div className="w-1 h-8 rounded-full bg-[var(--blue)] flex-shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-[var(--text-primary)] truncate">{event.summary}</p>
+                      <p className="text-[15px] sm:text-sm font-medium text-[var(--text-primary)] truncate">{event.summary}</p>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-xs text-[var(--text-tertiary)]">
+                        <span className="text-[13px] sm:text-xs text-[var(--text-tertiary)]">
                           <Clock className="size-3 inline mr-0.5 -mt-px" />
                           {timeStr}{endStr ? ` – ${endStr}` : ""}
                         </span>
                         {event.location && (
-                          <span className="text-xs text-[var(--text-quaternary)] truncate">{event.location}</span>
+                          <span className="text-[13px] sm:text-xs text-[var(--text-quaternary)] truncate">{event.location}</span>
                         )}
                       </div>
                     </div>
@@ -285,12 +285,12 @@ export default function DashboardView({
                     <div className="w-2 h-2 rounded-full bg-[var(--blue)] flex-shrink-0 mt-1.5" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-[13px] sm:text-sm font-medium text-[var(--text-primary)] truncate">{from}</p>
-                        <span className="text-[11px] text-[var(--text-quaternary)] flex-shrink-0">
+                        <p className="text-sm font-medium text-[var(--text-primary)] truncate">{from}</p>
+                        <span className="text-xs text-[var(--text-quaternary)] flex-shrink-0">
                           {new Date(Number(email.internalDate)).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })}
                         </span>
                       </div>
-                      <p className="text-xs text-[var(--text-body)] truncate mt-0.5">{subject}</p>
+                      <p className="text-[13px] sm:text-xs text-[var(--text-body)] truncate mt-0.5">{subject}</p>
                     </div>
                   </button>
                 );
@@ -298,7 +298,7 @@ export default function DashboardView({
               {unreadEmails.length > 5 && (
                 <button
                   onClick={() => onNavigate("mail")}
-                  className="w-full py-2 text-xs text-[var(--blue)] hover:underline t-transition"
+                  className="w-full py-2 text-[13px] sm:text-xs text-[var(--blue)] hover:underline t-transition"
                 >
                   +{unreadEmails.length - 5} {t.dashboardViewAll.toLowerCase()}
                 </button>

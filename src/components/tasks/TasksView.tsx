@@ -137,31 +137,31 @@ export default function TasksView({
             className="flex-1 min-w-0 cursor-pointer py-1 sm:py-0"
             onClick={() => setExpandedTask(isExpanded ? null : task.id)}
           >
-            <p className={`text-[13px] sm:text-sm leading-snug ${isCompleted ? "line-through text-[var(--text-tertiary)]" : "text-[var(--text-primary)]"}`}>
+            <p className={`text-[15px] sm:text-sm leading-snug ${isCompleted ? "line-through text-[var(--text-tertiary)]" : "text-[var(--text-primary)]"}`}>
               {task.title}
             </p>
             <div className="flex items-center gap-2 flex-wrap mt-0.5">
               {hasDue && (
-                <span className={`text-xs flex items-center gap-1 ${isOverdue ? "text-red-500" : "text-[var(--text-tertiary)]"}`}>
+                <span className={`text-[13px] sm:text-xs flex items-center gap-1 ${isOverdue ? "text-red-500" : "text-[var(--text-tertiary)]"}`}>
                   <CalendarIcon className="size-3" />
                   {dueDate!.toLocaleDateString(lang === "zh" ? "zh-CN" : "en-US", { month: "short", day: "numeric" })}
                 </span>
               )}
               {task.updated && isExpanded && (
-                <span className="text-[10px] text-[var(--text-quaternary)] flex items-center gap-0.5">
+                <span className="text-[11px] text-[var(--text-quaternary)] flex items-center gap-0.5">
                   <Clock className="size-2.5" />
                   {new Date(task.updated).toLocaleDateString(lang === "zh" ? "zh-CN" : "en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                 </span>
               )}
               {isCompleted && task.completed && isExpanded && (
-                <span className="text-[10px] text-emerald-500 flex items-center gap-0.5">
+                <span className="text-[11px] text-emerald-500 flex items-center gap-0.5">
                   <Check className="size-2.5" />
                   {new Date(task.completed).toLocaleDateString(lang === "zh" ? "zh-CN" : "en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                 </span>
               )}
             </div>
             {task.notes && isExpanded && (
-              <p className="text-xs text-[var(--text-tertiary)] mt-1.5 whitespace-pre-wrap leading-relaxed">
+              <p className="text-[13px] sm:text-xs text-[var(--text-tertiary)] mt-1.5 whitespace-pre-wrap leading-relaxed">
                 {task.notes}
               </p>
             )}
@@ -291,7 +291,7 @@ export default function TasksView({
                     <button
                       key={list.id}
                       onClick={() => setActiveListId(list.id)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium rounded-full whitespace-nowrap flex-shrink-0 t-transition ${
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-full whitespace-nowrap flex-shrink-0 t-transition ${
                         isActive
                           ? "bg-[var(--blue)] text-white"
                           : "bg-[var(--bg-alt)] text-[var(--text-body)] active:bg-[var(--bg-active)]"
@@ -303,7 +303,7 @@ export default function TasksView({
                       />
                       {list.title}
                       {count > 0 && (
-                        <span className={`text-[11px] ${isActive ? "text-white/70" : "text-[var(--text-quaternary)]"}`}>
+                        <span className={`text-xs ${isActive ? "text-white/70" : "text-[var(--text-quaternary)]"}`}>
                           {count}
                         </span>
                       )}
@@ -323,8 +323,8 @@ export default function TasksView({
             <div className="px-4 py-3 border-b border-[var(--border-light)] flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <ListTodo className="size-4 text-[var(--blue)]" />
-                <h2 className="text-sm font-semibold text-[var(--text-primary)]">{selectedList.title}</h2>
-                <span className="text-xs text-[var(--text-quaternary)]">
+                <h2 className="text-[15px] sm:text-sm font-semibold text-[var(--text-primary)]">{selectedList.title}</h2>
+                <span className="text-[13px] sm:text-xs text-[var(--text-quaternary)]">
                   {pendingTasks.length} {t.tasks.toLowerCase()}
                 </span>
               </div>

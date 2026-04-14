@@ -365,17 +365,17 @@ export default function MailView({
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
-                            <span className={`text-[13px] sm:text-sm truncate ${isUnread ? "font-semibold text-[var(--text-primary)]" : "text-[var(--text-body)]"}`}>
+                            <span className={`text-[15px] sm:text-sm truncate ${isUnread ? "font-semibold text-[var(--text-primary)]" : "text-[var(--text-body)]"}`}>
                               {senderName}
                             </span>
-                            <span className="text-[11px] text-[var(--text-placeholder)] flex-shrink-0">
+                            <span className="text-xs sm:text-[11px] text-[var(--text-placeholder)] flex-shrink-0">
                               {formatDate(date, lang)}
                             </span>
                           </div>
-                          <p className={`text-[13px] sm:text-sm truncate mt-0.5 ${isUnread ? "font-medium text-[var(--text-primary)]" : "text-[var(--text-body)]"}`}>
+                          <p className={`text-sm truncate mt-0.5 ${isUnread ? "font-medium text-[var(--text-primary)]" : "text-[var(--text-body)]"}`}>
                             {subject}
                           </p>
-                          <p className="text-xs text-[var(--text-tertiary)] truncate mt-0.5">
+                          <p className="text-[13px] sm:text-xs text-[var(--text-tertiary)] truncate mt-0.5">
                             {email.snippet}
                           </p>
                         </div>
@@ -435,7 +435,7 @@ export default function MailView({
           {/* Detail content */}
           <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-5">
             {/* Subject */}
-            <h1 className="text-xl font-medium text-[var(--text-primary)] mb-4">
+            <h1 className="text-[22px] sm:text-xl font-medium text-[var(--text-primary)] mb-4">
               {getHeader(selectedEmail.payload, "Subject")}
             </h1>
 
@@ -449,18 +449,18 @@ export default function MailView({
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-[var(--text-primary)] truncate">
+                  <p className="text-[15px] sm:text-sm font-medium text-[var(--text-primary)] truncate">
                     {getHeader(selectedEmail.payload, "From")}
                   </p>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <p className="text-xs text-[var(--text-tertiary)] truncate">
+                    <p className="text-[13px] sm:text-xs text-[var(--text-tertiary)] truncate">
                       {getHeader(selectedEmail.payload, "Date")}
                     </p>
                     <a
                       href={`https://mail.google.com/mail/u/0/#inbox/${selectedEmail.id}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-xs text-[var(--text-tertiary)] hover:text-[var(--blue)] t-transition flex-shrink-0"
+                      className="flex items-center gap-1 text-[13px] sm:text-xs text-[var(--text-tertiary)] hover:text-[var(--blue)] t-transition flex-shrink-0"
                     >
                       <ExternalLink className="size-3" />
                       <span className="hidden sm:inline">{t.viewInGmail}</span>

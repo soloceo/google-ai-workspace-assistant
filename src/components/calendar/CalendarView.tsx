@@ -175,7 +175,7 @@ export default function CalendarView({
         {/* Weekday headers */}
         <div className="grid grid-cols-7 px-1 sm:px-2 py-1.5">
           {weekDays.map(d => (
-            <div key={d} className="text-center text-[11px] sm:text-xs font-medium text-[var(--text-placeholder)] py-0.5">{d}</div>
+            <div key={d} className="text-center text-xs font-medium text-[var(--text-placeholder)] py-0.5">{d}</div>
           ))}
         </div>
 
@@ -200,7 +200,7 @@ export default function CalendarView({
                     : "text-[var(--text-body)] hover:bg-[var(--bg-alt)]"
                 }`}
               >
-                <span className="text-[13px] sm:text-sm">{day}</span>
+                <span className="text-sm">{day}</span>
                 {dayEvents.length > 0 && (
                   <div className="flex gap-0.5 mt-0.5">
                     {dayEvents.slice(0, 3).map((ev, j) => (
@@ -222,7 +222,7 @@ export default function CalendarView({
       <div className="flex-1 overflow-y-auto">
         <div className="px-3 sm:px-5 py-3 sm:py-4">
           <div className="flex items-center justify-between mb-3 sm:mb-4">
-            <h2 className="text-sm font-medium text-[var(--text-primary)]">
+            <h2 className="text-[15px] sm:text-sm font-medium text-[var(--text-primary)]">
               {selectedDate.toLocaleDateString(lang === "zh" ? "zh-CN" : "en-US", { weekday: "long", month: "long", day: "numeric" })}
             </h2>
             <button
@@ -287,7 +287,7 @@ export default function CalendarView({
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
-                                <h3 className="text-sm font-medium text-[var(--text-primary)] truncate">{event.summary}</h3>
+                                <h3 className="text-[15px] sm:text-sm font-medium text-[var(--text-primary)] truncate">{event.summary}</h3>
                                 {accounts.length > 1 && event.accountEmail && (
                                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg)] text-[var(--text-quaternary)] flex-shrink-0 hidden sm:inline">
                                     {event.accountEmail}
@@ -295,13 +295,13 @@ export default function CalendarView({
                                 )}
                               </div>
                               <div className="flex items-center gap-3 mt-1">
-                                <span className="flex items-center gap-1 text-xs text-[var(--text-tertiary)]">
+                                <span className="flex items-center gap-1 text-[13px] sm:text-xs text-[var(--text-tertiary)]">
                                   <Clock className="size-3" />
                                   {formatTime(event.start?.dateTime || event.start?.date, lang)}
                                   {event.end?.dateTime && ` - ${formatTime(event.end.dateTime, lang)}`}
                                 </span>
                                 {event.location && (
-                                  <span className="flex items-center gap-1 text-xs text-[var(--text-tertiary)] truncate">
+                                  <span className="flex items-center gap-1 text-[13px] sm:text-xs text-[var(--text-tertiary)] truncate">
                                     <MapPin className="size-3 flex-shrink-0" />
                                     {event.location}
                                   </span>
@@ -328,7 +328,7 @@ export default function CalendarView({
                             </div>
                           </div>
                           {event.description && (
-                            <p className="mt-1.5 text-xs text-[var(--text-tertiary)] line-clamp-2">{event.description}</p>
+                            <p className="mt-1.5 text-[13px] sm:text-xs text-[var(--text-tertiary)] line-clamp-2">{event.description}</p>
                           )}
                         </>
                       )}
@@ -390,7 +390,7 @@ export default function CalendarView({
                 </div>
               )}
             </div>
-            <div className="flex gap-2 px-4 sm:px-5 py-3 sm:py-4 border-t border-[var(--border-light)] safe-area-pb">
+            <div className="flex gap-2 px-4 sm:px-5 py-3 sm:py-4 border-t border-[var(--border-light)] safe-area-pb-modal">
               <button onClick={handleCreate} disabled={saving || !newSummary.trim()}
                 className="flex-1 h-11 sm:h-10 text-sm font-medium text-white bg-[var(--blue)] hover:bg-[var(--blue-hover)] rounded-[4px] t-btn-transition disabled:opacity-50">
                 {saving ? <Loader2 className="size-4 animate-spin mx-auto" /> : t.save}

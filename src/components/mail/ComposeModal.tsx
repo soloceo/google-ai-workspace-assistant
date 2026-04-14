@@ -178,7 +178,7 @@ export default function ComposeModal({
           {/* Send from */}
           {accounts.length > 1 && (
             <div className="flex items-center gap-2">
-              <label className="text-xs text-[var(--text-tertiary)] w-12">{t.sendFrom}</label>
+              <label className="text-[13px] sm:text-xs text-[var(--text-tertiary)] w-12">{t.sendFrom}</label>
               <select
                 value={sendFromAccount}
                 onChange={e => onSendFromChange(e.target.value)}
@@ -191,7 +191,7 @@ export default function ComposeModal({
 
           {/* To */}
           <div className="flex items-center gap-2">
-            <label className="text-xs text-[var(--text-tertiary)] w-12">{t.to}</label>
+            <label className="text-[13px] sm:text-xs text-[var(--text-tertiary)] w-12">{t.to}</label>
             <input
               type="email"
               value={to}
@@ -200,7 +200,7 @@ export default function ComposeModal({
               autoFocus={!isReply}
             />
             {!showCcBcc && (
-              <button onClick={() => setShowCcBcc(true)} className="text-xs text-[var(--text-tertiary)] hover:text-[var(--blue)] t-transition">
+              <button onClick={() => setShowCcBcc(true)} className="text-[13px] sm:text-xs text-[var(--text-tertiary)] hover:text-[var(--blue)] t-transition">
                 {t.addCcBcc}
               </button>
             )}
@@ -209,12 +209,12 @@ export default function ComposeModal({
           {showCcBcc && (
             <>
               <div className="flex items-center gap-2">
-                <label className="text-xs text-[var(--text-tertiary)] w-12">{t.cc}</label>
+                <label className="text-[13px] sm:text-xs text-[var(--text-tertiary)] w-12">{t.cc}</label>
                 <input type="email" value={cc} onChange={e => setCc(e.target.value)}
                   className="flex-1 h-8 px-2 text-sm bg-[var(--bg-alt)] border-none rounded-[4px] text-[var(--text-body)] placeholder:text-[var(--text-placeholder)] focus:outline-none focus:ring-2 focus:ring-[var(--blue)]" />
               </div>
               <div className="flex items-center gap-2">
-                <label className="text-xs text-[var(--text-tertiary)] w-12">{t.bcc}</label>
+                <label className="text-[13px] sm:text-xs text-[var(--text-tertiary)] w-12">{t.bcc}</label>
                 <input type="email" value={bcc} onChange={e => setBcc(e.target.value)}
                   className="flex-1 h-8 px-2 text-sm bg-[var(--bg-alt)] border-none rounded-[4px] text-[var(--text-body)] placeholder:text-[var(--text-placeholder)] focus:outline-none focus:ring-2 focus:ring-[var(--blue)]" />
               </div>
@@ -224,7 +224,7 @@ export default function ComposeModal({
           {/* Subject (only for new compose) */}
           {!isReply && (
             <div className="flex items-center gap-2">
-              <label className="text-xs text-[var(--text-tertiary)] w-12">{t.subject}</label>
+              <label className="text-[13px] sm:text-xs text-[var(--text-tertiary)] w-12">{t.subject}</label>
               <input
                 type="text"
                 value={subject}
@@ -285,7 +285,7 @@ export default function ComposeModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center gap-1.5 sm:gap-2 px-4 py-2.5 sm:py-3 border-t border-[var(--border-light)] safe-area-pb">
+        <div className="flex items-center gap-1.5 sm:gap-2 px-4 py-2.5 sm:py-3 border-t border-[var(--border-light)] safe-area-pb-modal">
           <button onClick={handleSend} disabled={sending || !to.trim()}
             className="flex items-center gap-2 px-5 h-10 sm:h-9 text-sm font-medium text-white bg-[var(--blue)] hover:bg-[var(--blue-hover)] rounded-[4px] t-btn-transition disabled:opacity-50">
             {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}

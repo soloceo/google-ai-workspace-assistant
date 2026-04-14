@@ -868,7 +868,7 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
               <div className="w-7 h-7 bg-[var(--blue)] rounded-[4px] flex items-center justify-center flex-shrink-0">
                 <Sparkles className="size-4 text-white" />
               </div>
-              <h1 className="text-sm font-semibold text-[var(--text-primary)]">
+              <h1 className="text-base font-semibold text-[var(--text-primary)]">
                 {tabs.find(t => t.id === activeTab)?.label}
               </h1>
             </div>
@@ -907,7 +907,7 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
               <select
                 value={accountFilter}
                 onChange={e => setAccountFilter(e.target.value)}
-                className={`${isMobile ? "h-9 pl-1.5 pr-5 text-[11px] max-w-[90px]" : "h-8 px-2 text-sm"} bg-transparent border border-[var(--border-light)] rounded-[4px] text-[var(--text-body)] t-transition appearance-none bg-[length:12px] bg-[right_4px_center] bg-no-repeat`}
+                className={`${isMobile ? "h-9 pl-1.5 pr-5 text-[13px] max-w-[100px]" : "h-8 px-2 text-sm"} bg-transparent border border-[var(--border-light)] rounded-[4px] text-[var(--text-body)] t-transition appearance-none bg-[length:12px] bg-[right_4px_center] bg-no-repeat`}
                 style={isMobile ? { backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' viewBox='0 0 24 24' stroke='%23999' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")` } : undefined}
               >
                 <option value="all">{t.allAccounts}</option>
@@ -1027,7 +1027,7 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
                   <div className="absolute top-0 left-1/2 -translate-x-1/2 w-5 h-[2px] bg-[var(--blue)] rounded-full" />
                 )}
                 <Icon className="size-[22px]" />
-                <span className="text-[10px] font-medium leading-none">{label}</span>
+                <span className="text-[11px] font-medium leading-none">{label}</span>
               </button>
             ))}
           </nav>

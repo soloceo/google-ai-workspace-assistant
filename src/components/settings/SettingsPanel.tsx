@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, Plus, Trash2, Sun, Moon, Monitor, ExternalLink, Loader2, CheckCircle2, XCircle, Languages, LogOut } from "lucide-react";
+import { X, Plus, Trash2, Sun, Moon, Monitor, ExternalLink, Loader2, CheckCircle2, XCircle, Languages, LogOut, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { translations, type Language } from "../../translations";
 import type { AccountSummary } from "../../types";
@@ -96,8 +96,8 @@ export default function SettingsPanel({
         <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-6">
           {/* Theme */}
           <section>
-            <h3 className="text-sm font-medium text-[var(--text-primary)] mb-1">{t.theme}</h3>
-            <p className="text-xs text-[var(--text-tertiary)] mb-3">{t.themeDesc}</p>
+            <h3 className="text-[15px] sm:text-sm font-medium text-[var(--text-primary)] mb-1">{t.theme}</h3>
+            <p className="text-[13px] sm:text-xs text-[var(--text-tertiary)] mb-3">{t.themeDesc}</p>
             <div className="flex gap-2">
               {themes.map(({ value, icon: Icon, label }) => (
                 <button
@@ -118,8 +118,8 @@ export default function SettingsPanel({
 
           {/* AI Model */}
           <section>
-            <h3 className="text-sm font-medium text-[var(--text-primary)] mb-1">{t.aiModel}</h3>
-            <p className="text-xs text-[var(--text-tertiary)] mb-3">{t.aiModelDesc}</p>
+            <h3 className="text-[15px] sm:text-sm font-medium text-[var(--text-primary)] mb-1">{t.aiModel}</h3>
+            <p className="text-[13px] sm:text-xs text-[var(--text-tertiary)] mb-3">{t.aiModelDesc}</p>
             <select
               value={aiModel}
               onChange={e => setAiModel(e.target.value)}
@@ -145,7 +145,7 @@ export default function SettingsPanel({
                 <ExternalLink className="size-3" />
               </a>
             </div>
-            <p className="text-xs text-[var(--text-tertiary)] mb-3">{t.geminiApiKeyDesc}</p>
+            <p className="text-[13px] sm:text-xs text-[var(--text-tertiary)] mb-3">{t.geminiApiKeyDesc}</p>
             <div className="flex gap-2">
               <input
                 type="password"
@@ -179,8 +179,8 @@ export default function SettingsPanel({
 
           {/* Email Signature */}
           <section>
-            <h3 className="text-sm font-medium text-[var(--text-primary)] mb-1">{t.emailSignature}</h3>
-            <p className="text-xs text-[var(--text-tertiary)] mb-3">{t.emailSignatureDesc}</p>
+            <h3 className="text-[15px] sm:text-sm font-medium text-[var(--text-primary)] mb-1">{t.emailSignature}</h3>
+            <p className="text-[13px] sm:text-xs text-[var(--text-tertiary)] mb-3">{t.emailSignatureDesc}</p>
             <textarea
               value={signature}
               onChange={e => setSignature(e.target.value)}
@@ -191,8 +191,8 @@ export default function SettingsPanel({
 
           {/* Accounts */}
           <section>
-            <h3 className="text-sm font-medium text-[var(--text-primary)] mb-1">{t.accounts}</h3>
-            <p className="text-xs text-[var(--text-tertiary)] mb-3">{t.manageAccounts}</p>
+            <h3 className="text-[15px] sm:text-sm font-medium text-[var(--text-primary)] mb-1">{t.accounts}</h3>
+            <p className="text-[13px] sm:text-xs text-[var(--text-tertiary)] mb-3">{t.manageAccounts}</p>
             <div className="space-y-2">
               {accounts.map(account => (
                 <div key={account.email} className="flex items-center gap-3 p-3 bg-[var(--bg-alt)] rounded-[4px]">
@@ -224,6 +224,20 @@ export default function SettingsPanel({
             </div>
           </section>
 
+          {/* Check for Updates */}
+          <section>
+            <button
+              onClick={() => {
+                toast.success(t.upToDate);
+                setTimeout(() => window.location.reload(), 1200);
+              }}
+              className="w-full flex items-center gap-3 h-11 sm:h-10 px-3 text-sm text-[var(--text-body)] bg-[var(--bg-alt)] hover:bg-[var(--bg-hover)] active:bg-[var(--bg-hover)] rounded-[4px] t-transition"
+            >
+              <RefreshCw className="size-4 text-[var(--text-tertiary)]" />
+              {t.checkForUpdates}
+            </button>
+          </section>
+
           {/* Language & Logout (mobile-accessible) */}
           {(onLangChange || onLogout) && (
             <section className="space-y-2">
@@ -250,7 +264,7 @@ export default function SettingsPanel({
         </div>
 
         {/* Footer */}
-        <div className="flex gap-2 px-4 sm:px-5 py-3 sm:py-4 border-t border-[var(--border-light)] safe-area-pb">
+        <div className="flex gap-2 px-4 sm:px-5 py-3 sm:py-4 border-t border-[var(--border-light)] safe-area-pb-modal">
           <button
             onClick={handleSave}
             className="flex-1 h-11 sm:h-10 text-sm font-medium text-white bg-[var(--blue)] hover:bg-[var(--blue-hover)] rounded-[4px] t-btn-transition"
