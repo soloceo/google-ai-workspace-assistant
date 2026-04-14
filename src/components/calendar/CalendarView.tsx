@@ -248,7 +248,7 @@ export default function CalendarView({
           ) : (
             <div className="space-y-2">
               {selectedEvents.map(event => (
-                <div key={event.id} className="p-4 bg-[var(--bg-alt)] rounded-[4px] group">
+                <div key={event.id} className="p-3 sm:p-4 bg-[var(--bg-alt)] rounded-[4px] group">
                   <div className="flex items-start gap-3">
                     {event.accountColor && (
                       <div className="w-1 h-full min-h-[40px] rounded-full flex-shrink-0" style={{ backgroundColor: event.accountColor }} />
@@ -284,48 +284,52 @@ export default function CalendarView({
                       ) : (
                         // View mode
                         <>
-                          <div className="flex items-center gap-2">
-                            <h3 className="text-sm font-medium text-[var(--text-primary)]">{event.summary}</h3>
-                            {accounts.length > 1 && event.accountEmail && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg)] text-[var(--text-quaternary)] flex-shrink-0">
-                                {event.accountEmail}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-3 mt-1">
-                            <span className="flex items-center gap-1 text-xs text-[var(--text-tertiary)]">
-                              <Clock className="size-3" />
-                              {formatTime(event.start?.dateTime || event.start?.date, lang)}
-                              {event.end?.dateTime && ` - ${formatTime(event.end.dateTime, lang)}`}
-                            </span>
-                            {event.location && (
-                              <span className="flex items-center gap-1 text-xs text-[var(--text-tertiary)]">
-                                <MapPin className="size-3" />
-                                {event.location}
-                              </span>
-                            )}
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <h3 className="text-sm font-medium text-[var(--text-primary)] truncate">{event.summary}</h3>
+                                {accounts.length > 1 && event.accountEmail && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg)] text-[var(--text-quaternary)] flex-shrink-0 hidden sm:inline">
+                                    {event.accountEmail}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-3 mt-1">
+                                <span className="flex items-center gap-1 text-xs text-[var(--text-tertiary)]">
+                                  <Clock className="size-3" />
+                                  {formatTime(event.start?.dateTime || event.start?.date, lang)}
+                                  {event.end?.dateTime && ` - ${formatTime(event.end.dateTime, lang)}`}
+                                </span>
+                                {event.location && (
+                                  <span className="flex items-center gap-1 text-xs text-[var(--text-tertiary)] truncate">
+                                    <MapPin className="size-3 flex-shrink-0" />
+                                    {event.location}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            {/* Actions — inline on mobile, hover on desktop */}
+                            <div className={`flex gap-0.5 flex-shrink-0 ${isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100"} t-transition`}>
+                              <button onClick={() => setEditingEvent({ ...event })}
+                                className="size-9 sm:size-7 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] active:bg-[var(--bg-hover)] hover:bg-[var(--bg-hover)] rounded-[4px] t-transition">
+                                <Pencil className="size-4 sm:size-3" />
+                              </button>
+                              <button onClick={async () => {
+                                if (!confirm(lang === "zh" ? "确定删除此事件吗？" : "Delete this event?")) return;
+                                try {
+                                  await onDeleteEvent(event.id);
+                                } catch {
+                                  toast.error(t.actionFailed);
+                                }
+                              }}
+                                className="size-9 sm:size-7 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--danger)] active:bg-red-50 hover:bg-red-50 rounded-[4px] t-transition dark:hover:bg-red-900/20 dark:active:bg-red-900/20">
+                                <Trash2 className="size-4 sm:size-3" />
+                              </button>
+                            </div>
                           </div>
                           {event.description && (
-                            <p className="mt-2 text-xs text-[var(--text-tertiary)]">{event.description}</p>
+                            <p className="mt-1.5 text-xs text-[var(--text-tertiary)] line-clamp-2">{event.description}</p>
                           )}
-                          {/* Actions */}
-                          <div className={`flex gap-1 mt-2 ${isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100"} t-transition`}>
-                            <button onClick={() => setEditingEvent({ ...event })}
-                              className="size-9 sm:size-7 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] active:bg-[var(--bg-hover)] hover:bg-[var(--bg-hover)] rounded-[4px] t-transition">
-                              <Pencil className="size-4 sm:size-3" />
-                            </button>
-                            <button onClick={async () => {
-                              if (!confirm(lang === "zh" ? "确定删除此事件吗？" : "Delete this event?")) return;
-                              try {
-                                await onDeleteEvent(event.id);
-                              } catch {
-                                toast.error(t.actionFailed);
-                              }
-                            }}
-                              className="size-9 sm:size-7 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--danger)] active:bg-red-50 hover:bg-red-50 rounded-[4px] t-transition dark:hover:bg-red-900/20 dark:active:bg-red-900/20">
-                              <Trash2 className="size-4 sm:size-3" />
-                            </button>
-                          </div>
                         </>
                       )}
                     </div>
@@ -337,56 +341,62 @@ export default function CalendarView({
         </div>
       </div>
 
-      {/* ── Create Event Modal ── */}
+      {/* ── Create Event Modal (bottom sheet on mobile) ── */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onKeyDown={e => { if (e.key === "Escape") setShowCreateModal(false); }}>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4" onKeyDown={e => { if (e.key === "Escape") setShowCreateModal(false); }}>
           <div className="absolute inset-0 bg-black/30" onClick={() => setShowCreateModal(false)} />
-          <div className="relative w-full max-w-md bg-[var(--bg)] rounded-[4px] p-5 space-y-3 animate-fade-in">
-            <div className="flex items-center justify-between">
+          <div className="relative w-full sm:max-w-md bg-[var(--bg)] sm:rounded-[4px] rounded-t-2xl flex flex-col max-h-[90vh] sm:max-h-[80vh] animate-fade-in">
+            {/* Drag handle (mobile) */}
+            <div className="flex justify-center pt-2 pb-0 sm:hidden">
+              <div className="w-8 h-1 rounded-full bg-[var(--border-medium)]" />
+            </div>
+            <div className="px-4 sm:px-5 pt-3 pb-2 sm:py-4 flex items-center justify-between border-b border-[var(--border-light)]">
               <h2 className="text-sm font-medium text-[var(--text-primary)]">{t.newEvent}</h2>
-              <button onClick={() => setShowCreateModal(false)} className="size-7 flex items-center justify-center text-[var(--text-tertiary)] hover:bg-[var(--bg-alt)] rounded-[4px]">
-                <X className="size-4" />
+              <button onClick={() => setShowCreateModal(false)} className="size-9 sm:size-7 flex items-center justify-center text-[var(--text-tertiary)] active:bg-[var(--bg-alt)] hover:bg-[var(--bg-alt)] rounded-[4px]">
+                <X className="size-5 sm:size-4" />
               </button>
             </div>
-            <input type="text" value={newSummary} onChange={e => setNewSummary(e.target.value)} placeholder={t.title}
-              className="w-full h-9 px-3 text-sm bg-[var(--bg-alt)] border-none rounded-[4px] text-[var(--text-body)] placeholder:text-[var(--text-placeholder)] focus:outline-none focus:ring-2 focus:ring-[var(--blue)]" autoFocus />
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-xs text-[var(--text-tertiary)] mb-1 block">{t.startTime}</label>
-                <input type="datetime-local" value={newStart} onChange={e => setNewStart(e.target.value)}
-                  className="w-full h-9 px-2 text-sm bg-[var(--bg-alt)] border-none rounded-[4px] text-[var(--text-body)] focus:outline-none focus:ring-2 focus:ring-[var(--blue)]" />
+            <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-3 space-y-3">
+              <input type="text" value={newSummary} onChange={e => setNewSummary(e.target.value)} placeholder={t.title}
+                className="w-full h-11 sm:h-9 px-3 text-sm bg-[var(--bg-alt)] border-none rounded-[4px] text-[var(--text-body)] placeholder:text-[var(--text-placeholder)] focus:outline-none focus:ring-2 focus:ring-[var(--blue)]" autoFocus />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs text-[var(--text-tertiary)] mb-1 block">{t.startTime}</label>
+                  <input type="datetime-local" value={newStart} onChange={e => setNewStart(e.target.value)}
+                    className="w-full h-11 sm:h-9 px-2 text-sm bg-[var(--bg-alt)] border-none rounded-[4px] text-[var(--text-body)] focus:outline-none focus:ring-2 focus:ring-[var(--blue)]" />
+                </div>
+                <div>
+                  <label className="text-xs text-[var(--text-tertiary)] mb-1 block">{t.endTime}</label>
+                  <input type="datetime-local" value={newEnd} onChange={e => setNewEnd(e.target.value)}
+                    className="w-full h-11 sm:h-9 px-2 text-sm bg-[var(--bg-alt)] border-none rounded-[4px] text-[var(--text-body)] focus:outline-none focus:ring-2 focus:ring-[var(--blue)]" />
+                </div>
               </div>
-              <div>
-                <label className="text-xs text-[var(--text-tertiary)] mb-1 block">{t.endTime}</label>
-                <input type="datetime-local" value={newEnd} onChange={e => setNewEnd(e.target.value)}
-                  className="w-full h-9 px-2 text-sm bg-[var(--bg-alt)] border-none rounded-[4px] text-[var(--text-body)] focus:outline-none focus:ring-2 focus:ring-[var(--blue)]" />
-              </div>
+              <input type="text" value={newLocation} onChange={e => setNewLocation(e.target.value)} placeholder="Location"
+                className="w-full h-11 sm:h-9 px-3 text-sm bg-[var(--bg-alt)] border-none rounded-[4px] text-[var(--text-body)] placeholder:text-[var(--text-placeholder)] focus:outline-none focus:ring-2 focus:ring-[var(--blue)]" />
+              <textarea value={newDescription} onChange={e => setNewDescription(e.target.value)} placeholder={t.description} rows={3}
+                className="w-full px-3 py-2.5 text-sm bg-[var(--bg-alt)] border-none rounded-[4px] text-[var(--text-body)] placeholder:text-[var(--text-placeholder)] focus:outline-none focus:ring-2 focus:ring-[var(--blue)] resize-none" />
+              {accounts.length > 1 && (
+                <div>
+                  <label className="text-xs text-[var(--text-tertiary)] mb-1 block">{t.account}</label>
+                  <select
+                    value={newAccount}
+                    onChange={e => setNewAccount(e.target.value)}
+                    className="w-full h-11 sm:h-9 px-3 text-sm bg-[var(--bg-alt)] border-none rounded-[4px] text-[var(--text-body)] focus:outline-none focus:ring-2 focus:ring-[var(--blue)]"
+                  >
+                    {accounts.map(a => (
+                      <option key={a.email} value={a.email}>{a.name} ({a.email})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
-            <input type="text" value={newLocation} onChange={e => setNewLocation(e.target.value)} placeholder="Location"
-              className="w-full h-9 px-3 text-sm bg-[var(--bg-alt)] border-none rounded-[4px] text-[var(--text-body)] placeholder:text-[var(--text-placeholder)] focus:outline-none focus:ring-2 focus:ring-[var(--blue)]" />
-            <textarea value={newDescription} onChange={e => setNewDescription(e.target.value)} placeholder={t.description} rows={3}
-              className="w-full px-3 py-2 text-sm bg-[var(--bg-alt)] border-none rounded-[4px] text-[var(--text-body)] placeholder:text-[var(--text-placeholder)] focus:outline-none focus:ring-2 focus:ring-[var(--blue)] resize-none" />
-            {accounts.length > 1 && (
-              <div>
-                <label className="text-xs text-[var(--text-tertiary)] mb-1 block">{t.account}</label>
-                <select
-                  value={newAccount}
-                  onChange={e => setNewAccount(e.target.value)}
-                  className="w-full h-9 px-3 text-sm bg-[var(--bg-alt)] border-none rounded-[4px] text-[var(--text-body)] focus:outline-none focus:ring-2 focus:ring-[var(--blue)]"
-                >
-                  {accounts.map(a => (
-                    <option key={a.email} value={a.email}>{a.name} ({a.email})</option>
-                  ))}
-                </select>
-              </div>
-            )}
-            <div className="flex gap-2 pt-1">
+            <div className="flex gap-2 px-4 sm:px-5 py-3 sm:py-4 border-t border-[var(--border-light)] safe-area-pb">
               <button onClick={handleCreate} disabled={saving || !newSummary.trim()}
-                className="flex-1 h-10 text-sm font-medium text-white bg-[var(--blue)] hover:bg-[var(--blue-hover)] rounded-[4px] t-btn-transition disabled:opacity-50">
+                className="flex-1 h-11 sm:h-10 text-sm font-medium text-white bg-[var(--blue)] hover:bg-[var(--blue-hover)] rounded-[4px] t-btn-transition disabled:opacity-50">
                 {saving ? <Loader2 className="size-4 animate-spin mx-auto" /> : t.save}
               </button>
               <button onClick={() => setShowCreateModal(false)}
-                className="px-4 h-10 text-sm text-[var(--text-tertiary)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition">
+                className="px-4 h-11 sm:h-10 text-sm text-[var(--text-tertiary)] hover:bg-[var(--bg-alt)] active:bg-[var(--bg-alt)] rounded-[4px] t-transition">
                 {t.cancel}
               </button>
             </div>

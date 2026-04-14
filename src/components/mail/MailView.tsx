@@ -347,15 +347,15 @@ export default function MailView({
                     <button
                       key={email.id}
                       onClick={() => setSelectedEmail(email)}
-                      className={`w-full text-left px-3 sm:px-4 py-3 sm:py-3 border-b border-[var(--border-light)] t-transition active:bg-[var(--bg-active)] ${
+                      className={`w-full text-left px-3 sm:px-4 py-2.5 sm:py-3 border-b border-[var(--border-light)] t-transition active:bg-[var(--bg-active)] ${
                         isSelected
                           ? "bg-[var(--blue-light)]"
                           : "hover:bg-[var(--bg-hover)]"
                       }`}
                     >
-                      <div className="flex items-start gap-2.5">
+                      <div className="flex items-start gap-2">
                         {/* Account color dot + unread indicator */}
-                        <div className="flex flex-col items-center gap-1 mt-1 flex-shrink-0">
+                        <div className="flex flex-col items-center gap-1 mt-1.5 flex-shrink-0">
                           {email.accountColor && (
                             <div
                               className="w-2 h-2 rounded-full"
@@ -375,7 +375,7 @@ export default function MailView({
                           <p className={`text-[13px] sm:text-sm truncate mt-0.5 ${isUnread ? "font-medium text-[var(--text-primary)]" : "text-[var(--text-body)]"}`}>
                             {subject}
                           </p>
-                          <p className="text-xs text-[var(--text-tertiary)] truncate mt-0.5 leading-relaxed">
+                          <p className="text-xs text-[var(--text-tertiary)] truncate mt-0.5">
                             {email.snippet}
                           </p>
                         </div>
@@ -440,31 +440,35 @@ export default function MailView({
             </h1>
 
             {/* From / Date */}
-            <div className="flex items-center gap-3 mb-6">
-              {selectedEmail.accountColor && (
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-medium flex-shrink-0"
-                  style={{ backgroundColor: selectedEmail.accountColor }}>
-                  {getHeader(selectedEmail.payload, "From").charAt(0).toUpperCase()}
+            <div className="mb-6">
+              <div className="flex items-center gap-3">
+                {selectedEmail.accountColor && (
+                  <div className="w-9 h-9 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-white text-xs font-medium flex-shrink-0"
+                    style={{ backgroundColor: selectedEmail.accountColor }}>
+                    {getHeader(selectedEmail.payload, "From").charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-[var(--text-primary)] truncate">
+                    {getHeader(selectedEmail.payload, "From")}
+                  </p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <p className="text-xs text-[var(--text-tertiary)] truncate">
+                      {getHeader(selectedEmail.payload, "Date")}
+                    </p>
+                    <a
+                      href={`https://mail.google.com/mail/u/0/#inbox/${selectedEmail.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-xs text-[var(--text-tertiary)] hover:text-[var(--blue)] t-transition flex-shrink-0"
+                    >
+                      <ExternalLink className="size-3" />
+                      <span className="hidden sm:inline">{t.viewInGmail}</span>
+                      <span className="sm:hidden">Gmail</span>
+                    </a>
+                  </div>
                 </div>
-              )}
-              <div className="flex-1">
-                <p className="text-sm font-medium text-[var(--text-primary)]">
-                  {getHeader(selectedEmail.payload, "From")}
-                </p>
-                <p className="text-xs text-[var(--text-tertiary)]">
-                  {getHeader(selectedEmail.payload, "Date")}
-                </p>
               </div>
-              {/* Gmail link */}
-              <a
-                href={`https://mail.google.com/mail/u/0/#inbox/${selectedEmail.id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 text-xs text-[var(--text-tertiary)] hover:text-[var(--blue)] t-transition"
-              >
-                <ExternalLink className="size-3" />
-                {t.viewInGmail}
-              </a>
             </div>
 
             {/* Body */}

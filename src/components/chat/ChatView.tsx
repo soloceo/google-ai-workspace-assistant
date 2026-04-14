@@ -263,39 +263,39 @@ export default function ChatView({ isDemo, lang, geminiApiKey, aiModel, workspac
           <div className="h-full overflow-y-auto">
             <div className="max-w-xl mx-auto px-3 sm:px-4 py-4 sm:py-6 pb-8 sm:pb-16">
               {/* Hero */}
-              <div className="text-center mb-4 sm:mb-6">
-                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[var(--blue-light)] flex items-center justify-center mx-auto mb-3 sm:mb-4">
-                  <Sparkles className="size-6 sm:size-7 text-[var(--blue)]" />
+              <div className="text-center mb-3 sm:mb-6">
+                <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-[var(--blue-light)] flex items-center justify-center mx-auto mb-2 sm:mb-4">
+                  <Sparkles className="size-5 sm:size-7 text-[var(--blue)]" />
                 </div>
-                <h2 className="text-base sm:text-lg font-semibold text-[var(--text-primary)] mb-1">{t.aiWelcomeTitle}</h2>
-                <p className="text-[13px] sm:text-sm text-[var(--text-tertiary)] leading-relaxed max-w-md mx-auto">{t.aiWelcomeSubtitle}</p>
+                <h2 className="text-[15px] sm:text-lg font-semibold text-[var(--text-primary)] mb-0.5 sm:mb-1">{t.aiWelcomeTitle}</h2>
+                <p className="text-xs sm:text-sm text-[var(--text-tertiary)] leading-snug sm:leading-relaxed max-w-md mx-auto">{t.aiWelcomeSubtitle}</p>
               </div>
 
               {/* API Key Banner */}
               {!hasApiKey && (
                 <button
                   onClick={onOpenSettings}
-                  className="w-full flex items-center gap-3 p-3 mb-5 bg-amber-500/10 border border-amber-500/20 rounded-[4px] text-left hover:bg-amber-500/15 t-transition"
+                  className="w-full flex items-center gap-2.5 p-2.5 sm:p-3 mb-4 sm:mb-5 bg-amber-500/10 border border-amber-500/20 rounded-[4px] text-left hover:bg-amber-500/15 active:bg-amber-500/15 t-transition"
                 >
                   <KeyRound className="size-5 text-amber-500 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-[var(--text-primary)]">{t.apiKeyMissing}</p>
-                    <p className="text-xs text-[var(--text-tertiary)] mt-0.5">{t.geminiApiKeyDesc}</p>
+                    <p className="text-[13px] sm:text-sm font-medium text-[var(--text-primary)]">{t.apiKeyMissing}</p>
+                    <p className="text-[11px] sm:text-xs text-[var(--text-tertiary)] mt-0.5">{t.geminiApiKeyDesc}</p>
                   </div>
                   <span className="text-xs font-medium text-amber-600 flex-shrink-0">{t.apiKeySetup} →</span>
                 </button>
               )}
 
               {/* Capability Categories */}
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3">
                 {categories.map(cat => (
                   <div key={cat.label} className="bg-[var(--bg-alt)] rounded-[4px] overflow-hidden">
                     {/* Category Header */}
-                    <div className="flex items-center gap-2 px-3 pt-3 pb-1.5">
-                      <div className={`w-6 h-6 rounded-md ${cat.bg} flex items-center justify-center`}>
-                        <cat.icon className={`size-3.5 ${cat.color}`} />
+                    <div className="flex items-center gap-2 px-3 pt-2.5 sm:pt-3 pb-1">
+                      <div className={`w-5 h-5 sm:w-6 sm:h-6 rounded-md ${cat.bg} flex items-center justify-center`}>
+                        <cat.icon className={`size-3 sm:size-3.5 ${cat.color}`} />
                       </div>
-                      <span className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide">{cat.label}</span>
+                      <span className="text-[11px] sm:text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide">{cat.label}</span>
                     </div>
                     {/* Example Prompts */}
                     <div className="px-1.5 pb-1.5">
@@ -304,7 +304,7 @@ export default function ChatView({ isDemo, lang, geminiApiKey, aiModel, workspac
                           key={ex.text}
                           onClick={() => sendMessage(ex.prompt)}
                           disabled={streaming || !hasApiKey}
-                          className="w-full flex items-center gap-2 px-2.5 py-2 text-left text-sm text-[var(--text-body)] hover:bg-[var(--bg-active)] rounded-[4px] t-transition disabled:opacity-40 disabled:cursor-not-allowed group"
+                          className="w-full flex items-center gap-2 px-2.5 py-1.5 sm:py-2 text-left text-[13px] sm:text-sm text-[var(--text-body)] hover:bg-[var(--bg-active)] active:bg-[var(--bg-active)] rounded-[4px] t-transition disabled:opacity-40 disabled:cursor-not-allowed group"
                         >
                           <ChevronRight className="size-3 text-[var(--text-quaternary)] group-hover:text-[var(--blue)] t-transition flex-shrink-0" />
                           <span className="truncate">{ex.text}</span>
@@ -330,7 +330,7 @@ export default function ChatView({ isDemo, lang, geminiApiKey, aiModel, workspac
                 )}
                 <div className={`max-w-[85%] sm:max-w-[80%] ${
                   msg.role === "user"
-                    ? "bg-[var(--blue)] text-white px-3.5 sm:px-4 py-2.5 rounded-2xl sm:rounded-[4px]"
+                    ? "bg-[var(--blue)] text-white px-3.5 sm:px-4 py-2.5 rounded-2xl rounded-tr-md sm:rounded-[4px]"
                     : "text-[var(--text-body)]"
                 }`}>
                   {msg.role === "assistant" ? (

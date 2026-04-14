@@ -172,10 +172,10 @@ export default function TasksView({
             <FileText className="size-3.5 text-[var(--text-quaternary)] mt-2.5 sm:mt-0.5 flex-shrink-0" />
           )}
 
-          {/* Delete — always visible on mobile */}
+          {/* Delete — visible on expand (mobile) or hover (desktop) */}
           <button
             onClick={() => onDeleteTask(selectedListId!, task.id)}
-            className={`${isMobile ? "opacity-100 size-10" : "opacity-0 group-hover:opacity-100 size-6 mt-0.5"} flex items-center justify-center text-[var(--text-quaternary)] hover:text-red-500 active:text-red-500 t-transition flex-shrink-0`}
+            className={`${isMobile ? (isExpanded ? "opacity-100" : "opacity-30") + " size-10" : "opacity-0 group-hover:opacity-100 size-6 mt-0.5"} flex items-center justify-center text-[var(--text-quaternary)] hover:text-red-500 active:text-red-500 t-transition flex-shrink-0`}
           >
             <Trash2 className="size-4 sm:size-3.5" />
           </button>
@@ -353,7 +353,7 @@ export default function TasksView({
                     onChange={e => setNewTitle(e.target.value)}
                     onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAddTask(); } if (e.key === "Escape") setShowNewTask(false); }}
                     placeholder={t.taskTitle}
-                    className="w-full text-sm bg-transparent text-[var(--text-primary)] placeholder:text-[var(--text-quaternary)] focus:outline-none"
+                    className="w-full text-sm sm:text-sm bg-transparent text-[var(--text-primary)] placeholder:text-[var(--text-quaternary)] focus:outline-none py-1"
                   />
                   <textarea
                     value={newNotes}

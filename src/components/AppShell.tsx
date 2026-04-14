@@ -907,11 +907,12 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
               <select
                 value={accountFilter}
                 onChange={e => setAccountFilter(e.target.value)}
-                className={`${isMobile ? "h-9 px-1.5 text-xs max-w-[100px]" : "h-8 px-2 text-sm"} bg-transparent border border-[var(--border-light)] rounded-[4px] text-[var(--text-body)] t-transition`}
+                className={`${isMobile ? "h-9 pl-1.5 pr-5 text-[11px] max-w-[90px]" : "h-8 px-2 text-sm"} bg-transparent border border-[var(--border-light)] rounded-[4px] text-[var(--text-body)] t-transition appearance-none bg-[length:12px] bg-[right_4px_center] bg-no-repeat`}
+                style={isMobile ? { backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' viewBox='0 0 24 24' stroke='%23999' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")` } : undefined}
               >
                 <option value="all">{t.allAccounts}</option>
                 {profile.accounts.map(a => (
-                  <option key={a.email} value={a.email}>{a.name}</option>
+                  <option key={a.email} value={a.email}>{isMobile ? a.email.split("@")[0] : a.name}</option>
                 ))}
               </select>
             )}

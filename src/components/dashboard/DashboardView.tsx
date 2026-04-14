@@ -145,48 +145,48 @@ export default function DashboardView({
         {/* ── AI Tip Card ── */}
         <button
           onClick={() => onNavigate("ai")}
-          className="w-full flex items-center gap-3 p-3 bg-[var(--blue-light)] rounded-[4px] text-left hover:bg-[var(--blue)]/15 t-transition group"
+          className="w-full flex items-center gap-2.5 sm:gap-3 p-2.5 sm:p-3 bg-[var(--blue-light)] rounded-[4px] text-left hover:bg-[var(--blue)]/15 active:bg-[var(--blue)]/15 t-transition group"
         >
-          <div className="w-9 h-9 rounded-lg bg-[var(--blue)]/15 flex items-center justify-center flex-shrink-0">
-            <Sparkles className="size-4.5 text-[var(--blue)]" />
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-[var(--blue)]/15 flex items-center justify-center flex-shrink-0">
+            <Sparkles className="size-4 sm:size-4.5 text-[var(--blue)]" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm text-[var(--text-body)] leading-snug">{t.dashboardAiTip}</p>
+            <p className="text-[13px] sm:text-sm text-[var(--text-body)] leading-snug line-clamp-2">{t.dashboardAiTip}</p>
           </div>
-          <span className="text-xs font-medium text-[var(--blue)] flex-shrink-0 group-hover:underline">
+          <span className="text-[11px] sm:text-xs font-medium text-[var(--blue)] flex-shrink-0 group-hover:underline whitespace-nowrap">
             {t.dashboardAiTipAction} →
           </span>
         </button>
 
         {/* ── Stats Cards ── */}
-        <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        <div className="grid grid-cols-3 gap-1.5 sm:gap-3">
           <button
             onClick={() => onNavigate("tasks")}
-            className="p-2.5 sm:p-3 bg-[var(--bg-alt)] rounded-[4px] text-left hover:bg-[var(--bg-active)] active:bg-[var(--bg-active)] t-transition active:scale-[0.97]"
+            className="p-2 sm:p-3 bg-[var(--bg-alt)] rounded-[4px] text-left hover:bg-[var(--bg-active)] active:bg-[var(--bg-active)] t-transition active:scale-[0.97]"
           >
-            <div className="flex items-center gap-1 sm:gap-1.5 mb-1.5">
-              <CheckSquare className="size-3.5 text-[var(--blue)]" />
-              <span className="text-[10px] sm:text-[11px] text-[var(--text-tertiary)] font-medium leading-tight">{t.dashboardPendingTasks}</span>
+            <div className="flex items-center gap-1 mb-1">
+              <CheckSquare className="size-3 sm:size-3.5 text-[var(--blue)]" />
+              <span className="text-[10px] sm:text-[11px] text-[var(--text-tertiary)] font-medium leading-tight truncate">{t.dashboardPendingTasks}</span>
             </div>
             <p className="text-xl sm:text-2xl font-semibold text-[var(--text-primary)] tabular-nums">{pendingTasks.length}</p>
           </button>
           <button
             onClick={() => onNavigate("calendar")}
-            className="p-2.5 sm:p-3 bg-[var(--bg-alt)] rounded-[4px] text-left hover:bg-[var(--bg-active)] active:bg-[var(--bg-active)] t-transition active:scale-[0.97]"
+            className="p-2 sm:p-3 bg-[var(--bg-alt)] rounded-[4px] text-left hover:bg-[var(--bg-active)] active:bg-[var(--bg-active)] t-transition active:scale-[0.97]"
           >
-            <div className="flex items-center gap-1 sm:gap-1.5 mb-1.5">
-              <CalendarIcon className="size-3.5 text-[var(--blue)]" />
-              <span className="text-[10px] sm:text-[11px] text-[var(--text-tertiary)] font-medium leading-tight">{t.dashboardTodayEvents}</span>
+            <div className="flex items-center gap-1 mb-1">
+              <CalendarIcon className="size-3 sm:size-3.5 text-[var(--blue)]" />
+              <span className="text-[10px] sm:text-[11px] text-[var(--text-tertiary)] font-medium leading-tight truncate">{t.dashboardTodayEvents}</span>
             </div>
             <p className="text-xl sm:text-2xl font-semibold text-[var(--text-primary)] tabular-nums">{todayEvents.length}</p>
           </button>
           <button
             onClick={() => onNavigate("mail")}
-            className="p-2.5 sm:p-3 bg-[var(--bg-alt)] rounded-[4px] text-left hover:bg-[var(--bg-active)] active:bg-[var(--bg-active)] t-transition active:scale-[0.97]"
+            className="p-2 sm:p-3 bg-[var(--bg-alt)] rounded-[4px] text-left hover:bg-[var(--bg-active)] active:bg-[var(--bg-active)] t-transition active:scale-[0.97]"
           >
-            <div className="flex items-center gap-1 sm:gap-1.5 mb-1.5">
-              <Mail className="size-3.5 text-[var(--blue)]" />
-              <span className="text-[10px] sm:text-[11px] text-[var(--text-tertiary)] font-medium leading-tight">{t.dashboardUnreadEmails}</span>
+            <div className="flex items-center gap-1 mb-1">
+              <Mail className="size-3 sm:size-3.5 text-[var(--blue)]" />
+              <span className="text-[10px] sm:text-[11px] text-[var(--text-tertiary)] font-medium leading-tight truncate">{t.dashboardUnreadEmails}</span>
             </div>
             <p className="text-xl sm:text-2xl font-semibold text-[var(--text-primary)] tabular-nums">{unreadEmails.length}</p>
           </button>
@@ -205,8 +205,8 @@ export default function DashboardView({
               {pendingTasks.slice(0, 6).map(task => {
                 const due = getDueLabel(task.due);
                 return (
-                  <div key={task.id} className="flex items-center gap-2.5 sm:gap-3 py-2.5 sm:py-2 px-2 sm:px-3 rounded-[4px] hover:bg-[var(--bg-alt)] active:bg-[var(--bg-alt)] t-transition">
-                    <div className="w-[18px] h-[18px] sm:w-4 sm:h-4 rounded-full border-2 border-[var(--border)] flex-shrink-0" />
+                  <div key={task.id} className="flex items-center gap-2 sm:gap-3 py-2 sm:py-2 px-2 sm:px-3 rounded-[4px] hover:bg-[var(--bg-alt)] active:bg-[var(--bg-alt)] t-transition">
+                    <div className="w-4 h-4 rounded-full border-2 border-[var(--border)] flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] sm:text-sm text-[var(--text-primary)] truncate">{task.title}</p>
                     </div>
