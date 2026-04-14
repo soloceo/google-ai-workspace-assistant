@@ -118,13 +118,13 @@ export default function DashboardView({
   if (loading) {
     return (
       <div className="h-full overflow-y-auto">
-        <div className="max-w-2xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
+        <div className="max-w-2xl mx-auto px-4 sm:px-4 py-5 sm:py-6 space-y-6 sm:space-y-8">
           <div className="space-y-1">
             <div className="h-6 w-48 bg-[var(--bg-alt)] rounded animate-pulse" />
             <div className="h-4 w-64 bg-[var(--bg-alt)] rounded animate-pulse" />
           </div>
           <div className="h-14 bg-[var(--bg-alt)] rounded-[4px] animate-pulse" />
-          <div className="grid grid-cols-3 gap-2 sm:gap-3">
+          <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
             {[1, 2, 3].map(i => <div key={i} className="h-20 bg-[var(--bg-alt)] rounded-[4px] animate-pulse" />)}
           </div>
           {[1, 2, 3].map(i => <div key={i} className="h-32 bg-[var(--bg-alt)] rounded-[4px] animate-pulse" />)}
@@ -135,7 +135,7 @@ export default function DashboardView({
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-2xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
+      <div className="max-w-2xl mx-auto px-4 sm:px-4 py-5 sm:py-6 space-y-6 sm:space-y-8">
         {/* ── Greeting ── */}
         <div className="space-y-1">
           <h1 className="text-lg sm:text-xl font-semibold text-[var(--text-primary)]">{greeting}</h1>
@@ -159,12 +159,12 @@ export default function DashboardView({
         </button>
 
         {/* ── Stats Cards ── */}
-        <div className="grid grid-cols-3 gap-1.5 sm:gap-3">
+        <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
           <button
             onClick={() => onNavigate("tasks")}
-            className="p-2 sm:p-3 bg-[var(--bg-alt)] rounded-[4px] text-left hover:bg-[var(--bg-active)] active:bg-[var(--bg-active)] t-transition active:scale-[0.97]"
+            className="p-3 sm:p-3 bg-[var(--bg-alt)] rounded-[4px] text-left hover:bg-[var(--bg-active)] active:bg-[var(--bg-active)] t-transition active:scale-[0.97]"
           >
-            <div className="flex items-center gap-1 mb-1">
+            <div className="flex items-center gap-1 mb-1.5">
               <CheckSquare className="size-3 sm:size-3.5 text-[var(--blue)]" />
               <span className="text-[11px] sm:text-[11px] text-[var(--text-tertiary)] font-medium leading-tight truncate">{t.dashboardPendingTasks}</span>
             </div>
@@ -172,9 +172,9 @@ export default function DashboardView({
           </button>
           <button
             onClick={() => onNavigate("calendar")}
-            className="p-2 sm:p-3 bg-[var(--bg-alt)] rounded-[4px] text-left hover:bg-[var(--bg-active)] active:bg-[var(--bg-active)] t-transition active:scale-[0.97]"
+            className="p-3 sm:p-3 bg-[var(--bg-alt)] rounded-[4px] text-left hover:bg-[var(--bg-active)] active:bg-[var(--bg-active)] t-transition active:scale-[0.97]"
           >
-            <div className="flex items-center gap-1 mb-1">
+            <div className="flex items-center gap-1 mb-1.5">
               <CalendarIcon className="size-3 sm:size-3.5 text-[var(--blue)]" />
               <span className="text-[11px] sm:text-[11px] text-[var(--text-tertiary)] font-medium leading-tight truncate">{t.dashboardTodayEvents}</span>
             </div>
@@ -182,9 +182,9 @@ export default function DashboardView({
           </button>
           <button
             onClick={() => onNavigate("mail")}
-            className="p-2 sm:p-3 bg-[var(--bg-alt)] rounded-[4px] text-left hover:bg-[var(--bg-active)] active:bg-[var(--bg-active)] t-transition active:scale-[0.97]"
+            className="p-3 sm:p-3 bg-[var(--bg-alt)] rounded-[4px] text-left hover:bg-[var(--bg-active)] active:bg-[var(--bg-active)] t-transition active:scale-[0.97]"
           >
-            <div className="flex items-center gap-1 mb-1">
+            <div className="flex items-center gap-1 mb-1.5">
               <Mail className="size-3 sm:size-3.5 text-[var(--blue)]" />
               <span className="text-[11px] sm:text-[11px] text-[var(--text-tertiary)] font-medium leading-tight truncate">{t.dashboardUnreadEmails}</span>
             </div>
@@ -193,7 +193,7 @@ export default function DashboardView({
         </div>
 
         {/* ── Tasks Section ── */}
-        <section>
+        <section className="pt-2 border-t border-[var(--border-light)]">
           <SectionHeader icon={CheckSquare} title={t.dashboardPendingTasks} count={pendingTasks.length} tab="tasks" onNavigate={onNavigate} viewAllLabel={t.dashboardViewAll} />
           {pendingTasks.length === 0 ? (
             <div className="py-4 text-center">
@@ -201,7 +201,7 @@ export default function DashboardView({
               <p className="text-xs text-[var(--text-quaternary)] mt-1">{t.emptyTasksHint}</p>
             </div>
           ) : (
-            <div className="space-y-0.5">
+            <div className="space-y-1">
               {pendingTasks.slice(0, 6).map(task => {
                 const due = getDueLabel(task.due);
                 return (
@@ -228,7 +228,7 @@ export default function DashboardView({
         </section>
 
         {/* ── Calendar Section ── */}
-        <section>
+        <section className="pt-2 border-t border-[var(--border-light)]">
           <SectionHeader icon={CalendarIcon} title={t.dashboardTodayEvents} count={todayEvents.length} tab="calendar" onNavigate={onNavigate} viewAllLabel={t.dashboardViewAll} />
           {todayEvents.length === 0 ? (
             <div className="py-4 text-center">
@@ -236,7 +236,7 @@ export default function DashboardView({
               <p className="text-xs text-[var(--text-quaternary)] mt-1">{t.emptyCalendarHint}</p>
             </div>
           ) : (
-            <div className="space-y-0.5">
+            <div className="space-y-1">
               {todayEvents.map((event: any) => {
                 const start = new Date(event.start?.dateTime || event.start?.date || 0);
                 const end = event.end ? new Date(event.end?.dateTime || event.end?.date || 0) : null;
@@ -265,14 +265,14 @@ export default function DashboardView({
         </section>
 
         {/* ── Email Section ── */}
-        <section>
+        <section className="pt-2 border-t border-[var(--border-light)]">
           <SectionHeader icon={Mail} title={t.dashboardUnreadEmails} count={unreadEmails.length} tab="mail" onNavigate={onNavigate} viewAllLabel={t.dashboardViewAll} />
           {unreadEmails.length === 0 ? (
             <div className="py-4 text-center">
               <p className="text-sm text-[var(--text-quaternary)]">{t.emptyMailHint}</p>
             </div>
           ) : (
-            <div className="space-y-0.5">
+            <div className="space-y-1">
               {unreadEmails.slice(0, 5).map((email: any) => {
                 const from = extractSenderName(getHeader(email, "From"));
                 const subject = getHeader(email, "Subject");
