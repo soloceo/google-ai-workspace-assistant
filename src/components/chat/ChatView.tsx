@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Sparkles, Send, Trash2, Loader2, User, Bot,
-  CheckSquare, Calendar, Mail, Lightbulb, ChevronRight, KeyRound, ExternalLink,
+  CheckSquare, Calendar, Mail, Lightbulb, ChevronRight, KeyRound,
 } from "lucide-react";
 import { toast } from "sonner";
 import { translations, type Language } from "../../translations";
@@ -16,8 +16,8 @@ function renderMarkdown(text: string): string {
   // Extract code blocks first (preserve raw content)
   const codeBlocks: string[] = [];
   let safe = text.replace(/```(\w*)\n([\s\S]*?)```/g, (_, _lang, code) => {
-    codeBlocks.push(`<pre><code>${escapeHtml(code)}</code></pre>`);
-    return `%%CODE_BLOCK_${codeBlocks.length - 1}%%`;
+    codeBlocks.push(`<pre><code>${escapeHtml(code.trimEnd())}</code></pre>`);
+    return `\n%%CODE_BLOCK_${codeBlocks.length - 1}%%\n`;
   });
   const inlineCodes: string[] = [];
   safe = safe.replace(/`([^`]+)`/g, (_, code) => {
@@ -28,33 +28,98 @@ function renderMarkdown(text: string): string {
   // Escape remaining HTML
   safe = escapeHtml(safe);
 
-  // Apply markdown formatting
+  // Inline formatting
   safe = safe
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-    .replace(/^- (.+)$/gm, '<li>$1</li>')
-    .replace(/(<li>[\s\S]*?<\/li>)/g, '<ul>$1</ul>')
-    .replace(/<\/ul>\s*<ul>/g, '')
-    .replace(/\n\n/g, '</p><p>')
-    .replace(/\n/g, '<br/>');
+    .replace(/\*(.+?)\*/g, '<em>$1</em>');
 
-  // Restore code blocks
-  codeBlocks.forEach((block, i) => { safe = safe.replace(`%%CODE_BLOCK_${i}%%`, block); });
-  inlineCodes.forEach((code, i) => { safe = safe.replace(`%%INLINE_CODE_${i}%%`, code); });
+  // Process line by line for clean block-level rendering
+  const lines = safe.split('\n');
+  const out: string[] = [];
+  let inList = false;
 
-  return safe;
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    // Code block placeholder
+    if (trimmed.startsWith('%%CODE_BLOCK_')) {
+      if (inList) { out.push('</ul>'); inList = false; }
+      out.push(trimmed);
+      continue;
+    }
+
+    // Empty line = paragraph break
+    if (!trimmed) {
+      if (inList) { out.push('</ul>'); inList = false; }
+      out.push('');
+      continue;
+    }
+
+    // Headings
+    if (trimmed.startsWith('### ')) {
+      if (inList) { out.push('</ul>'); inList = false; }
+      out.push(`<h3>${trimmed.slice(4)}</h3>`);
+      continue;
+    }
+    if (trimmed.startsWith('## ')) {
+      if (inList) { out.push('</ul>'); inList = false; }
+      out.push(`<h2>${trimmed.slice(3)}</h2>`);
+      continue;
+    }
+    if (trimmed.startsWith('# ')) {
+      if (inList) { out.push('</ul>'); inList = false; }
+      out.push(`<h1>${trimmed.slice(2)}</h1>`);
+      continue;
+    }
+
+    // Unordered list items (- or *)
+    const listMatch = trimmed.match(/^[-*]\s+(.+)/);
+    if (listMatch) {
+      if (!inList) { out.push('<ul>'); inList = true; }
+      out.push(`<li>${listMatch[1]}</li>`);
+      continue;
+    }
+
+    // Numbered list items
+    const numMatch = trimmed.match(/^\d+\.\s+(.+)/);
+    if (numMatch) {
+      if (!inList) { out.push('<ul>'); inList = true; }
+      out.push(`<li>${numMatch[1]}</li>`);
+      continue;
+    }
+
+    // Regular text line
+    if (inList) { out.push('</ul>'); inList = false; }
+    out.push(trimmed);
+  }
+
+  if (inList) out.push('</ul>');
+
+  // Join with <br/> for non-empty adjacent text lines, blank lines become paragraph breaks
+  let html = '';
+  for (let i = 0; i < out.length; i++) {
+    const cur = out[i];
+    if (!cur) {
+      // Blank line — skip consecutive blanks
+      if (html && !html.endsWith('<br/>')) html += '<br/>';
+      continue;
+    }
+    html += cur;
+    // Add <br/> between plain text lines (not after block elements)
+    const next = out[i + 1];
+    if (next && !cur.startsWith('<') && !next.startsWith('<') && next !== '') {
+      html += '<br/>';
+    }
+  }
+
+  // Restore code blocks and inline codes
+  codeBlocks.forEach((block, i) => { html = html.replace(`%%CODE_BLOCK_${i}%%`, block); });
+  inlineCodes.forEach((code, i) => { html = html.replace(`%%INLINE_CODE_${i}%%`, code); });
+
+  return html;
 }
 
 export type ActionExecutor = (name: string, args: Record<string, any>) => Promise<{ success: boolean; message: string }>;
-
-interface EmailRef {
-  id: string;
-  subject: string;
-  from: string;
-}
 
 interface ChatViewProps {
   isDemo: boolean;
@@ -232,27 +297,6 @@ export default function ChatView({ isDemo, lang, geminiApiKey, aiModel, workspac
     { label: t.chipScheduleConflicts, prompt: lang === "zh" ? "检查我的日程是否有冲突" : "Check for schedule conflicts" },
   ];
 
-  // Extract email references from AI message text by matching against actual emails
-  const findEmailRefs = useCallback((text: string): EmailRef[] => {
-    if (!emails.length || !text) return [];
-    const refs: EmailRef[] = [];
-    const seen = new Set<string>();
-    for (const email of emails) {
-      const subject = email.payload?.headers?.find((h: any) => h.name?.toLowerCase() === "subject")?.value || "";
-      const from = email.payload?.headers?.find((h: any) => h.name?.toLowerCase() === "from")?.value || "";
-      const senderName = from.match(/^([^<]+)/)?.[1]?.trim().replace(/"/g, "") || from;
-      if (!subject && !senderName) continue;
-      // Match if subject or sender name appears in the AI response
-      const subjectMatch = subject && text.includes(subject);
-      const senderMatch = senderName && senderName.length > 2 && text.includes(senderName);
-      if ((subjectMatch || senderMatch) && !seen.has(email.id)) {
-        seen.add(email.id);
-        refs.push({ id: email.id, subject: subject || "(no subject)", from: senderName });
-      }
-    }
-    return refs;
-  }, [emails]);
-
   const hasApiKey = !!geminiApiKey;
 
   return (
@@ -335,33 +379,10 @@ export default function ChatView({ isDemo, lang, geminiApiKey, aiModel, workspac
                 }`}>
                   {msg.role === "assistant" ? (
                     msg.text ? (
-                      <>
-                        <div
-                          className="chat-markdown text-sm"
-                          dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }}
-                        />
-                        {/* Email reference links */}
-                        {(() => {
-                          const refs = findEmailRefs(msg.text);
-                          if (!refs.length) return null;
-                          return (
-                            <div className="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-[var(--border-light)]">
-                              {refs.map(ref => (
-                                <button
-                                  key={ref.id}
-                                  onClick={() => onNavigateToEmail?.(ref.id)}
-                                  className="inline-flex items-center gap-1 px-2 py-1 text-xs text-[var(--blue)] bg-[var(--blue-light)] hover:bg-[var(--blue)]/15 rounded-[4px] t-transition max-w-[280px]"
-                                  title={ref.subject}
-                                >
-                                  <Mail className="size-3 flex-shrink-0" />
-                                  <span className="truncate">{ref.from}: {ref.subject}</span>
-                                  <ExternalLink className="size-2.5 flex-shrink-0" />
-                                </button>
-                              ))}
-                            </div>
-                          );
-                        })()}
-                      </>
+                      <div
+                        className="chat-markdown text-sm"
+                        dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }}
+                      />
                     ) : (
                       <div className="flex gap-1 py-2">
                         <div className="w-1.5 h-1.5 rounded-full bg-[var(--text-placeholder)] typing-dot" />

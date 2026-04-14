@@ -642,6 +642,32 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
 
   // ── AI Action Executor (function calling) ──
   const executeAction = useCallback(async (name: string, args: Record<string, any>): Promise<{ success: boolean; message: string }> => {
+    // Confirmation for write operations
+    const writeActions: Record<string, (a: Record<string, any>) => string> = {
+      create_task: a => lang === "zh"
+        ? `创建任务：\n标题：${a.title}${a.due ? `\n截止：${a.due}` : ""}${a.notes ? `\n备注：${a.notes}` : ""}`
+        : `Create task:\nTitle: ${a.title}${a.due ? `\nDue: ${a.due}` : ""}${a.notes ? `\nNotes: ${a.notes}` : ""}`,
+      create_event: a => lang === "zh"
+        ? `创建日程：\n标题：${a.summary}\n开始：${a.start}\n结束：${a.end}${a.location ? `\n地点：${a.location}` : ""}`
+        : `Create event:\nTitle: ${a.summary}\nStart: ${a.start}\nEnd: ${a.end}${a.location ? `\nLocation: ${a.location}` : ""}`,
+      send_email: a => lang === "zh"
+        ? `发送邮件：\n收件人：${a.to}\n主题：${a.subject}\n内容：${a.body?.slice(0, 100)}${a.body?.length > 100 ? "..." : ""}`
+        : `Send email:\nTo: ${a.to}\nSubject: ${a.subject}\nBody: ${a.body?.slice(0, 100)}${a.body?.length > 100 ? "..." : ""}`,
+      delete_task: a => lang === "zh" ? `删除任务：${a.title}` : `Delete task: ${a.title}`,
+      delete_event: a => lang === "zh" ? `删除日程：${a.title}` : `Delete event: ${a.title}`,
+      archive_email: a => lang === "zh" ? `归档邮件：${a.subject}` : `Archive email: ${a.subject}`,
+      trash_email: a => lang === "zh" ? `删除邮件：${a.subject}` : `Trash email: ${a.subject}`,
+      complete_task: a => lang === "zh" ? `完成任务：${a.title}` : `Complete task: ${a.title}`,
+    };
+
+    if (writeActions[name]) {
+      const desc = writeActions[name](args);
+      const confirmMsg = lang === "zh" ? `确认执行以下操作？\n\n${desc}` : `Confirm this action?\n\n${desc}`;
+      if (!confirm(confirmMsg)) {
+        return { success: false, message: lang === "zh" ? "用户取消了操作" : "Action cancelled by user" };
+      }
+    }
+
     try {
       switch (name) {
         // ── Tasks ──
