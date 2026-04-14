@@ -30,7 +30,7 @@ export default function LoginScreen({ lang, onLangChange, onLogin, onDemo }: Log
   ];
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[var(--bg)] p-6">
+    <div className="min-h-dvh flex flex-col items-center justify-center bg-[var(--bg)] p-6">
       {/* Language toggle */}
       <button
         onClick={() => onLangChange(lang === "en" ? "zh" : "en")}

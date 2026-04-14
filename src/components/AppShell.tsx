@@ -792,7 +792,7 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
   ];
 
   return (
-    <div className="h-screen flex bg-[var(--bg)] overflow-hidden">
+    <div className="h-dvh flex bg-[var(--bg)] overflow-hidden">
       {/* ── Desktop Left Sidebar ── */}
       {!isMobile && (
         <aside className="w-[60px] flex flex-col items-center py-4 gap-1 border-r border-[var(--border-light)] bg-[var(--frost)] backdrop-blur-sm flex-shrink-0 z-20">

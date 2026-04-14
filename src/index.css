@@ -207,6 +207,20 @@
   }
 }
 
+/* ── Mobile Viewport Fix ───────────────────────────────────── */
+
+/* Fallback for browsers that don't support dvh */
+@supports not (height: 100dvh) {
+  .h-dvh {
+    height: 100vh;
+  }
+}
+
+/* Safe area padding for iPhone home indicator */
+.safe-area-pb {
+  padding-bottom: max(0px, env(safe-area-inset-bottom));
+}
+
 /* ── Email HTML Content Sandbox ─────────────────────────────── */
 
 .email-html-content {

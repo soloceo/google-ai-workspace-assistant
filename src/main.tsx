@@ -35,7 +35,7 @@ class ErrorBoundary extends Component<EBProps, EBState> {
     const { hasError, error } = this.state as EBState;
     if (hasError) {
       return (
-        <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#FFFFFF", fontFamily: "Inter, -apple-system, Arial, sans-serif" }}>
+        <div style={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", background: "#FFFFFF", fontFamily: "Inter, -apple-system, Arial, sans-serif" }}>
           <div style={{ textAlign: "center", maxWidth: 400, padding: 32 }}>
             <div style={{ width: 48, height: 48, borderRadius: 4, background: "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>

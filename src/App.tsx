@@ -65,7 +65,7 @@ export default function App() {
   // Loading
   if (authenticated === null) {
     return (
-      <div className="h-screen flex items-center justify-center bg-[var(--bg)]">
+      <div className="h-dvh flex items-center justify-center bg-[var(--bg)]">
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 bg-[var(--blue)] rounded-[4px] flex items-center justify-center">
             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
