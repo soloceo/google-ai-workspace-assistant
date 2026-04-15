@@ -230,7 +230,11 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
 
     setLoading(true);
     try {
-      const accounts = authService.getAllValidAccounts();
+      // Use ALL stored accounts (not just ones with valid tokens) so that
+      // per-account failures surface as re-auth prompts rather than silently
+      // hiding that account's data. `getAllValidAccounts()` would quietly
+      // drop expired accounts, making their events/emails/tasks "disappear".
+      const accounts = authService.getAccounts();
       if (accounts.length === 0) return;
 
       const [mailResult, calResult, tasksResult] = await Promise.all([
@@ -258,6 +262,23 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
         setCalendarEvents(calResult.items);
         setTaskLists(tasksResult.taskLists);
         setTaskItems(tasksResult.tasks);
+
+        // Aggregate accounts that failed across any of the three APIs
+        // and warn the user so they can re-authenticate.
+        const failed = new Set<string>([
+          ...(mailResult.failedAccounts || []),
+          ...(calResult.failedAccounts || []),
+          ...(tasksResult.failedAccounts || []),
+        ]);
+        if (failed.size > 0) {
+          const emails = [...failed].join(", ");
+          toast.error(
+            lang === "zh"
+              ? `账号 ${emails} 需要重新授权，数据可能不完整`
+              : `Account ${emails} needs re-authentication — data may be incomplete`,
+            { duration: 6000 }
+          );
+        }
       }
     } catch (e: any) {
       if (e.name !== "AbortError") {
@@ -267,14 +288,37 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
-  }, [isDemo, accountFilter, t]);
+  }, [isDemo, accountFilter, t, lang]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // ── Auto-refresh on window focus / tab visibility ──
+  // Throttled to once per 30s so rapid tab switching doesn't thrash the APIs.
+  // Fixes: events/emails created in Google Calendar / Gmail while this tab is
+  // open would otherwise stay stale until the user manually refreshed.
+  const lastAutoFetchRef = useRef<number>(Date.now());
+  useEffect(() => {
+    if (isDemo) return;
+    const AUTO_REFRESH_THROTTLE_MS = 30_000;
+    const maybeRefresh = () => {
+      if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (now - lastAutoFetchRef.current < AUTO_REFRESH_THROTTLE_MS) return;
+      lastAutoFetchRef.current = now;
+      fetchData(searchQuery);
+    };
+    window.addEventListener("focus", maybeRefresh);
+    document.addEventListener("visibilitychange", maybeRefresh);
+    return () => {
+      window.removeEventListener("focus", maybeRefresh);
+      document.removeEventListener("visibilitychange", maybeRefresh);
+    };
+  }, [isDemo, fetchData, searchQuery]);
 
   // ── Load More ──
   const loadMore = useCallback(async () => {
     if (isDemo || !hasMore) return;
-    const accounts = authService.getAllValidAccounts();
+    const accounts = authService.getAccounts();
     try {
       const result = await gmail.fetchAllAccountEmails(accounts, {
         q: searchQuery || undefined,
@@ -745,7 +789,14 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
                 description: args.description, location: args.location,
               })
             );
-            setCalendarEvents(prev => [...prev, { ...newEvent, accountEmail: sendFromAccount }]);
+            // Attach the correct account color so the event renders with the
+            // right color bar in the UI, matching other events from that account.
+            const acct = authService.getAccounts().find(a => a.email === sendFromAccount);
+            setCalendarEvents(prev => [...prev, {
+              ...newEvent,
+              accountEmail: sendFromAccount,
+              accountColor: acct?.color,
+            }]);
           }
           return { success: true, message: `Event "${args.summary}" created` };
         }
@@ -1052,6 +1103,7 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
               onUpdateEvent={handleUpdateEvent}
               onDeleteEvent={handleDeleteEvent}
               onRegisterCreate={(fn) => { calendarCreateRef.current = fn; }}
+              onRefresh={() => fetchData(searchQuery)}
             />
           )}
           {activeTab === "tasks" && (

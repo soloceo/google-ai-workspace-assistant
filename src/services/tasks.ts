@@ -192,6 +192,7 @@ export async function fetchAllAccountTasks(
 ): Promise<{
   taskLists: (TaskList & { accountEmail: string; accountColor: string })[];
   tasks: Task[];
+  failedAccounts: string[];
 }> {
   const filtered = opts?.accountFilter
     ? accounts.filter(a => a.email === opts.accountFilter)
@@ -199,6 +200,7 @@ export async function fetchAllAccountTasks(
 
   const allLists: (TaskList & { accountEmail: string; accountColor: string })[] = [];
   const allTasks: Task[] = [];
+  const failedAccounts: string[] = [];
 
   await Promise.all(
     filtered.map(async (account) => {
@@ -235,10 +237,11 @@ export async function fetchAllAccountTasks(
       } catch (e: any) {
         if (e.name !== 'AbortError') {
           console.error(`Tasks fetch error for ${account.email}:`, e);
+          failedAccounts.push(account.email);
         }
       }
     }),
   );
 
-  return { taskLists: allLists, tasks: allTasks };
+  return { taskLists: allLists, tasks: allTasks, failedAccounts };
 }

@@ -295,6 +295,7 @@ export async function fetchAllAccountEmails(
   items: any[];
   pageTokens: Record<string, string | null>;
   hasMore: boolean;
+  failedAccounts: string[];
 }> {
   const targets = params.accountFilter
     ? accounts.filter((a) => a.email === params.accountFilter)
@@ -306,6 +307,7 @@ export async function fetchAllAccountEmails(
 
   const allMessages: any[] = [];
   const nextPageTokens: Record<string, string | null> = {};
+  const failedAccounts: string[] = [];
 
   await Promise.all(
     targets.map(async (account) => {
@@ -354,8 +356,11 @@ export async function fetchAllAccountEmails(
         );
 
         allMessages.push(...detailed.filter(Boolean));
-      } catch (e) {
-        console.error(`Gmail API error for ${account.email}:`, e);
+      } catch (e: any) {
+        if (e?.name !== 'AbortError') {
+          console.error(`Gmail API error for ${account.email}:`, e);
+          failedAccounts.push(account.email);
+        }
         nextPageTokens[account.email] = null;
       }
     })
@@ -374,5 +379,6 @@ export async function fetchAllAccountEmails(
     items: allMessages,
     pageTokens: nextPageTokens,
     hasMore,
+    failedAccounts,
   };
 }

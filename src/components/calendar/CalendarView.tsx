@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import {
   ChevronLeft, ChevronRight, Clock, MapPin, Trash2,
-  Pencil, X, Loader2, Plus
+  Pencil, X, Loader2, Plus, RefreshCw
 } from "lucide-react";
 import { toast } from "sonner";
 import { translations, type Language } from "../../translations";
@@ -42,11 +42,12 @@ interface CalendarViewProps {
   onUpdateEvent: (id: string, event: { summary?: string; description?: string; location?: string; start?: string; end?: string }) => Promise<void>;
   onDeleteEvent: (id: string) => Promise<void>;
   onRegisterCreate?: (fn: () => void) => void;
+  onRefresh?: () => void;
 }
 
 export default function CalendarView({
   events, loading, isDemo, lang, accounts, sendFromAccount,
-  onCreateEvent, onUpdateEvent, onDeleteEvent, onRegisterCreate,
+  onCreateEvent, onUpdateEvent, onDeleteEvent, onRegisterCreate, onRefresh,
 }: CalendarViewProps) {
   const t = translations[lang];
 
@@ -225,13 +226,25 @@ export default function CalendarView({
             <h2 className="text-[15px] sm:text-sm font-medium text-[var(--text-primary)]">
               {selectedDate.toLocaleDateString(lang === "zh" ? "zh-CN" : "en-US", { weekday: "long", month: "long", day: "numeric" })}
             </h2>
-            <button
-              onClick={openCreateModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-[var(--blue)] hover:bg-[var(--blue-hover)] rounded-[4px] t-btn-transition"
-            >
-              <Plus className="size-4" />
-              {!isMobile && t.newEvent}
-            </button>
+            <div className="flex items-center gap-1.5">
+              {onRefresh && (
+                <button
+                  onClick={onRefresh}
+                  disabled={loading}
+                  title={lang === "zh" ? "刷新" : "Refresh"}
+                  className="size-9 sm:size-8 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] active:bg-[var(--bg-alt)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition disabled:opacity-50"
+                >
+                  <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
+                </button>
+              )}
+              <button
+                onClick={openCreateModal}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-[var(--blue)] hover:bg-[var(--blue-hover)] rounded-[4px] t-btn-transition"
+              >
+                <Plus className="size-4" />
+                {!isMobile && t.newEvent}
+              </button>
+            </div>
           </div>
 
           {loading ? (

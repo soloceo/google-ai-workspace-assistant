@@ -37,8 +37,16 @@ export async function listEvents(
   const searchParams = new URLSearchParams();
   searchParams.set('singleEvents', 'true');
   searchParams.set('orderBy', 'startTime');
-  searchParams.set('timeMin', params?.timeMin || new Date().toISOString());
-  searchParams.set('maxResults', String(params?.maxResults || 20));
+  // Default to start of today (local) so events earlier today still show up.
+  // Previously used `new Date().toISOString()` which excluded any event
+  // whose start time was before "now" — hiding events created earlier today.
+  const defaultTimeMin = (() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.toISOString();
+  })();
+  searchParams.set('timeMin', params?.timeMin || defaultTimeMin);
+  searchParams.set('maxResults', String(params?.maxResults || 50));
   if (params?.pageToken) searchParams.set('pageToken', params.pageToken);
   if (params?.q) searchParams.set('q', params.q);
 
@@ -145,7 +153,7 @@ export async function fetchAllAccountEvents(
     accountFilter?: string;
     signal?: AbortSignal;
   }
-): Promise<{ items: any[]; pageTokens: Record<string, string | null>; hasMore: boolean }> {
+): Promise<{ items: any[]; pageTokens: Record<string, string | null>; hasMore: boolean; failedAccounts: string[] }> {
   const targets = params?.accountFilter
     ? accounts.filter((a) => a.email === params.accountFilter)
     : accounts;
@@ -153,6 +161,7 @@ export async function fetchAllAccountEvents(
   const perAccountTokens = params?.pageTokens || {};
   const allEvents: any[] = [];
   const nextPageTokens: Record<string, string | null> = {};
+  const failedAccounts: string[] = [];
 
   await Promise.all(
     targets.map(async (account) => {
@@ -164,7 +173,10 @@ export async function fetchAllAccountEvents(
       }
 
       try {
-        const maxResults = targets.length > 1 ? 15 : 20;
+        // Bumped from 15/20 → 30/50: surface more of the user's upcoming
+        // events in one fetch. Calendar API max is 2500; 50 is a safe
+        // balance of coverage vs latency.
+        const maxResults = targets.length > 1 ? 30 : 50;
         const result = await listEvents(account.access_token, {
           maxResults,
           pageToken: accountPageToken || undefined,
@@ -180,8 +192,11 @@ export async function fetchAllAccountEvents(
 
         allEvents.push(...events);
         nextPageTokens[account.email] = result.nextPageToken || null;
-      } catch (e) {
-        console.error(`Calendar API error for ${account.email}:`, e);
+      } catch (e: any) {
+        if (e?.name !== 'AbortError') {
+          console.error(`Calendar API error for ${account.email}:`, e);
+          failedAccounts.push(account.email);
+        }
         nextPageTokens[account.email] = null;
       }
     })
@@ -200,5 +215,6 @@ export async function fetchAllAccountEvents(
     items: allEvents,
     pageTokens: nextPageTokens,
     hasMore,
+    failedAccounts,
   };
 }
