@@ -255,6 +255,79 @@ export function logout(): void {
   localStorage.removeItem(STORAGE_KEY);
 }
 
+// ── Silent Token Refresh ────────────────────────────────────
+
+/**
+ * Attempt to silently refresh an access token for the given account email
+ * using GIS `prompt: 'none'`. No popup is shown — if the user is still
+ * signed in to Google in the browser and previously granted consent,
+ * Google returns a fresh token seamlessly. If not, this returns null and
+ * the caller should fall back to the interactive flow.
+ *
+ * This is the closest thing to "permanent" auth achievable in a pure
+ * browser app (refresh_tokens require a backend).
+ */
+const silentRefreshInFlight = new Map<string, Promise<string | null>>();
+
+export async function refreshTokenSilent(email: string): Promise<string | null> {
+  const existing = silentRefreshInFlight.get(email);
+  if (existing) return existing;
+
+  const promise = (async (): Promise<string | null> => {
+    if (!GOOGLE_CLIENT_ID) return null;
+    try {
+      await loadGIS();
+      const tokenResponse = await new Promise<google.accounts.oauth2.TokenResponse>((resolve, reject) => {
+        const tokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: GOOGLE_CLIENT_ID,
+          scope: OAUTH_SCOPES,
+          callback: (response) => {
+            if (response.error) reject(new Error(response.error_description || response.error));
+            else resolve(response);
+          },
+          error_callback: (error) => reject(new Error(error?.message || 'Silent refresh failed')),
+        });
+        // `prompt: ''` with a hint is the GIS token-client equivalent of
+        // silent auth — returns a token if the user has an active Google
+        // session and previously consented, without showing any UI.
+        tokenClient.requestAccessToken({ hint: email, prompt: '' });
+      });
+
+      if (!tokenResponse?.access_token || !tokenResponse.expires_in) return null;
+
+      const accounts = getAccounts();
+      const prev = accounts.find((a) => a.email === email);
+      if (!prev) return null;
+
+      const updated: StoredAccount = {
+        ...prev,
+        access_token: tokenResponse.access_token,
+        token_expiry: Date.now() + tokenResponse.expires_in * 1000,
+      };
+      addOrUpdateAccount(updated);
+      return tokenResponse.access_token;
+    } catch {
+      // Silent refresh failed — caller should fall back to interactive flow
+      return null;
+    }
+  })();
+
+  silentRefreshInFlight.set(email, promise);
+  promise.finally(() => silentRefreshInFlight.delete(email));
+  return promise;
+}
+
+/**
+ * Attempt to silently refresh tokens for multiple accounts in parallel.
+ * Returns the list of emails whose silent refresh SUCCEEDED.
+ */
+export async function refreshTokensSilentBatch(emails: string[]): Promise<string[]> {
+  const results = await Promise.all(
+    emails.map(async (email) => ({ email, token: await refreshTokenSilent(email) }))
+  );
+  return results.filter((r) => r.token !== null).map((r) => r.email);
+}
+
 // ── Token Refresh Wrapper ───────────────────────────────────
 
 // Deduplication map: prevents multiple simultaneous GIS popups for the same account

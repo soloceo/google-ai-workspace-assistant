@@ -245,14 +245,26 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
 
     setLoading(true);
     try {
-      // Split accounts into valid (non-expired token) and expired. We only
-      // call APIs for valid ones — hitting Google with a known-dead token
-      // just wastes a round trip and a 401. Expired accounts surface via
-      // the re-auth banner (see `expiredAccounts` state below) instead of
-      // through a toast that re-fires on every auto-refresh.
       const allAccounts = authService.getAccounts();
       if (allAccounts.length === 0) return;
-      const validAccounts = authService.getAllValidAccounts();
+
+      // First, identify expired accounts and try to SILENTLY refresh them
+      // via GIS `prompt: ''`. This works without any popup as long as the
+      // user still has an active Google session in this browser — which
+      // is the closest thing to "permanent" auth achievable without a
+      // backend. Only accounts whose silent refresh fails get surfaced
+      // to the user via the re-auth banner.
+      let validAccounts = authService.getAllValidAccounts();
+      const initiallyExpired = allAccounts
+        .filter(a => !validAccounts.find(v => v.email === a.email))
+        .map(a => a.email);
+
+      if (initiallyExpired.length > 0) {
+        await authService.refreshTokensSilentBatch(initiallyExpired);
+        // Re-read after silent refresh attempts
+        validAccounts = authService.getAllValidAccounts();
+      }
+
       const expiredAcctEmails = allAccounts
         .filter(a => !validAccounts.find(v => v.email === a.email))
         .map(a => a.email);
@@ -304,6 +316,32 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
   }, [isDemo, accountFilter, t]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // ── Proactive silent token refresh ──
+  // Google browser-flow access tokens last 1 hour with no refresh_token.
+  // We silently renew them ~5 min before expiry using GIS prompt:none so
+  // the user stays signed in seamlessly as long as their Google session
+  // is active. Runs every 5 minutes; only accounts expiring within the
+  // next 10 minutes are refreshed.
+  useEffect(() => {
+    if (isDemo) return;
+    const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 min
+    const REFRESH_AHEAD_MS = 10 * 60 * 1000; // refresh tokens expiring within 10 min
+
+    const tick = async () => {
+      const accounts = authService.getAccounts();
+      const expiringSoon = accounts
+        .filter(a => a.token_expiry - Date.now() < REFRESH_AHEAD_MS)
+        .map(a => a.email);
+      if (expiringSoon.length === 0) return;
+      await authService.refreshTokensSilentBatch(expiringSoon);
+    };
+
+    // Run once on mount, then on interval
+    tick();
+    const id = setInterval(tick, REFRESH_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [isDemo]);
 
   // ── Auto-refresh on window focus / tab visibility ──
   // Throttled to once per 30s so rapid tab switching doesn't thrash the APIs.
