@@ -1,5 +1,15 @@
 export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
+/**
+ * Optional OAuth token service (Cloudflare Worker). When configured, the
+ * frontend delegates token management to the backend, which holds
+ * refresh_tokens server-side — giving permanent auth. When not set, the
+ * frontend falls back to the browser-only GIS flow with 1-hour tokens
+ * and silent refresh while the Google session is active.
+ */
+export const AUTH_BACKEND_URL = (import.meta.env.VITE_AUTH_BACKEND_URL || '').replace(/\/$/, '');
+export const USE_AUTH_BACKEND = !!AUTH_BACKEND_URL;
+
 export const OAUTH_SCOPES = [
   'https://www.googleapis.com/auth/gmail.readonly',
   'https://www.googleapis.com/auth/gmail.modify',

@@ -1,0 +1,25 @@
+name = "google-ai-workspace-auth"
+main = "src/index.ts"
+compatibility_date = "2024-10-01"
+
+# KV namespace for storing encrypted refresh tokens.
+# Create with: wrangler kv:namespace create "TOKENS"
+# Then paste the returned id below.
+[[kv_namespaces]]
+binding = "TOKENS"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+# Non-secret environment variables.
+# Set FRONTEND_ORIGIN to the URL your frontend is served from
+# (e.g. https://yourusername.github.io).
+[vars]
+FRONTEND_ORIGIN = "https://REPLACE_WITH_YOUR_FRONTEND_ORIGIN"
+GOOGLE_CLIENT_ID = "REPLACE_WITH_YOUR_GOOGLE_CLIENT_ID"
+OAUTH_SCOPES = "openid email profile https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/tasks"
+
+# Secrets — set via:
+#   wrangler secret put GOOGLE_CLIENT_SECRET
+#   wrangler secret put ENCRYPTION_KEY
+#
+# Generate ENCRYPTION_KEY with:
+#   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"

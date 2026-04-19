@@ -205,12 +205,26 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
     return () => mq.removeEventListener("change", handler);
   }, [settings.theme]);
 
+  // ── Handle Worker OAuth callback + sync backend accounts ──
+  // When the Cloudflare Worker redirects back after Google consent, the
+  // URL has ?auth=success&email=... — consume it, sync accounts from the
+  // backend, and strip the query params. Runs once on mount.
+  const [backendReady, setBackendReady] = useState(!authService.USE_AUTH_BACKEND_FLAG);
+  useEffect(() => {
+    if (isDemo || !authService.USE_AUTH_BACKEND_FLAG) return;
+    (async () => {
+      await authService.consumeBackendAuthCallback();
+      await authService.syncBackendAccounts();
+      setBackendReady(true);
+    })();
+  }, [isDemo]);
+
   // ── Load Profile ──
   useEffect(() => {
     if (isDemo) {
       setProfile({ name: DEMO_ACCOUNTS[0].name, email: DEMO_ACCOUNTS[0].email, accounts: DEMO_ACCOUNTS });
       setSendFromAccount(DEMO_ACCOUNTS[0].email);
-    } else {
+    } else if (backendReady) {
       const accounts = authService.getAccounts();
       if (accounts.length > 0) {
         const primary = accounts[0];
@@ -221,7 +235,7 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
         setSendFromAccount(primary.email);
       }
     }
-  }, [isDemo]);
+  }, [isDemo, backendReady]);
 
   // ── Fetch Data ──
   const fetchData = useCallback(async (query?: string) => {
@@ -248,20 +262,24 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
       const allAccounts = authService.getAccounts();
       if (allAccounts.length === 0) return;
 
-      // First, identify expired accounts and try to SILENTLY refresh them
-      // via GIS `prompt: ''`. This works without any popup as long as the
-      // user still has an active Google session in this browser — which
-      // is the closest thing to "permanent" auth achievable without a
-      // backend. Only accounts whose silent refresh fails get surfaced
-      // to the user via the re-auth banner.
+      // Two refresh paths:
+      //   1. Backend mode (VITE_AUTH_BACKEND_URL set): ask the Worker for a
+      //      fresh access_token for each account. Worker uses its stored
+      //      refresh_token → permanent auth. Any account whose refresh
+      //      fails is surfaced to the re-auth banner.
+      //   2. Browser-only mode: silent GIS refresh using prompt:''. Works
+      //      while the user's Google session is active.
       let validAccounts = authService.getAllValidAccounts();
       const initiallyExpired = allAccounts
         .filter(a => !validAccounts.find(v => v.email === a.email))
         .map(a => a.email);
 
       if (initiallyExpired.length > 0) {
-        await authService.refreshTokensSilentBatch(initiallyExpired);
-        // Re-read after silent refresh attempts
+        if (authService.USE_AUTH_BACKEND_FLAG) {
+          await authService.refreshTokensViaBackend(initiallyExpired);
+        } else {
+          await authService.refreshTokensSilentBatch(initiallyExpired);
+        }
         validAccounts = authService.getAllValidAccounts();
       }
 
@@ -315,7 +333,10 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
     }
   }, [isDemo, accountFilter, t]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    if (!isDemo && !backendReady) return; // wait for backend account sync in backend mode
+    fetchData();
+  }, [fetchData, isDemo, backendReady]);
 
   // ── Proactive silent token refresh ──
   // Google browser-flow access tokens last 1 hour with no refresh_token.
@@ -334,7 +355,11 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
         .filter(a => a.token_expiry - Date.now() < REFRESH_AHEAD_MS)
         .map(a => a.email);
       if (expiringSoon.length === 0) return;
-      await authService.refreshTokensSilentBatch(expiringSoon);
+      if (authService.USE_AUTH_BACKEND_FLAG) {
+        await authService.refreshTokensViaBackend(expiringSoon);
+      } else {
+        await authService.refreshTokensSilentBatch(expiringSoon);
+      }
     };
 
     // Run once on mount, then on interval
@@ -649,21 +674,22 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
   }, [isDemo, taskLists, t]);
 
   // ── Re-authenticate expired accounts ──
-  // Triggers the GIS consent flow for each expired account in sequence.
-  // `withFreshToken` handles the token refresh internally — we force it by
-  // wrapping a no-op call that will trigger the refresh path.
+  // Backend mode: redirect to the Worker's OAuth flow (handles all
+  // accounts via Google's account chooser). Browser-only mode: walk
+  // through each account's GIS consent flow in sequence.
   const handleReauthExpired = useCallback(async () => {
     if (isDemo) return;
     try {
+      if (authService.USE_AUTH_BACKEND_FLAG) {
+        await authService.backendStartAuth();
+        return; // full page redirect
+      }
       for (const email of expiredAccounts) {
-        // Force a token refresh by requesting a fresh token via withFreshToken.
-        // The `fetchUserProfile` call is cheap and validates the new token.
         await authService.withFreshToken(email, async (token) => {
           return authService.fetchUserProfile(token);
         });
       }
       setExpiredAccounts([]);
-      setExpiredBannerDismissed(false);
       toast.success(lang === "zh" ? "授权成功，正在同步数据…" : "Re-authenticated, syncing data…");
       fetchData(searchQuery);
     } catch (e: any) {
@@ -690,11 +716,19 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
     }
   }, [isDemo, t, fetchData]);
 
-  const handleRemoveAccount = useCallback((email: string) => {
+  const handleRemoveAccount = useCallback(async (email: string) => {
     if (isDemo) return;
     const accounts = profile?.accounts || [];
     if (accounts.length <= 1) { toast.error(t.cannotRemoveLast); return; }
-    authService.removeAccount(email);
+    if (authService.USE_AUTH_BACKEND_FLAG) {
+      try {
+        await authService.backendRevokeAccount(email);
+      } catch (e) {
+        console.error("Backend revoke failed:", e);
+      }
+    } else {
+      authService.removeAccount(email);
+    }
     const remaining = authService.getAccounts();
     setProfile(prev => ({
       ...prev!,

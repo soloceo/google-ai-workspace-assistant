@@ -1,9 +1,14 @@
 /**
  * Client-side auth using Google Identity Services (GIS) token flow.
- * Replaces all server-side OAuth logic from server.ts.
+ *
+ * Dual-mode: if VITE_AUTH_BACKEND_URL is set, we delegate refresh-token
+ * management to a Cloudflare Worker (permanent auth). Otherwise we use
+ * the browser-only GIS flow (1-hour tokens + silent refresh while the
+ * user's Google session is active).
  */
-import { GOOGLE_CLIENT_ID, OAUTH_SCOPES, ACCOUNT_COLORS } from '../config';
+import { GOOGLE_CLIENT_ID, OAUTH_SCOPES, ACCOUNT_COLORS, USE_AUTH_BACKEND } from '../config';
 import type { StoredAccount } from '../types';
+import * as backend from './auth-backend';
 
 const STORAGE_KEY = 'workspace_accounts';
 const TOKEN_EXPIRY_BUFFER_MS = 60_000; // Treat tokens as expired 60s before actual expiry
@@ -202,6 +207,16 @@ export function getAllValidAccounts(): StoredAccount[] {
  * @param selectAccount If true, forces the account chooser (for adding a new account).
  */
 export async function login(selectAccount = false): Promise<StoredAccount> {
+  // Backend mode: redirect to the Worker-based OAuth flow. The Worker
+  // redirects back with ?auth=success&email=... which the app detects
+  // on startup to sync the connected accounts.
+  if (USE_AUTH_BACKEND) {
+    await backendStartAuth();
+    // Redirect has been kicked off — this function will never resolve,
+    // but we need to return a promise-compatible value for TS.
+    return new Promise<StoredAccount>(() => {});
+  }
+
   await loadGIS();
 
   const tokenResponse = await requestToken({ selectAccount });
@@ -231,6 +246,25 @@ export async function login(selectAccount = false): Promise<StoredAccount> {
  */
 export async function addAccount(): Promise<StoredAccount> {
   return login(true);
+}
+
+/**
+ * Detect the OAuth callback redirect from the Worker (?auth=success).
+ * Syncs connected accounts from the backend and strips the query params.
+ * Returns true if a callback was consumed.
+ */
+export async function consumeBackendAuthCallback(): Promise<boolean> {
+  if (!USE_AUTH_BACKEND) return false;
+  const url = new URL(window.location.href);
+  if (url.searchParams.get('auth') !== 'success') return false;
+
+  await syncBackendAccounts();
+
+  // Clean the URL so a refresh doesn't re-trigger
+  url.searchParams.delete('auth');
+  url.searchParams.delete('email');
+  window.history.replaceState({}, '', url.pathname + (url.search ? `?${url.search}` : '') + url.hash);
+  return true;
 }
 
 /**
@@ -377,11 +411,30 @@ async function refreshToken(email: string): Promise<string> {
  * Wraps an async function that requires a token. If the function throws a 401
  * (UnauthorizedError), re-requests a token via GIS popup and retries once.
  * Concurrent refresh requests for the same account are deduplicated.
+ *
+ * When the auth backend is configured, tokens come from the Worker
+ * instead of being kept in localStorage — giving true permanent auth.
  */
 export async function withFreshToken<T>(
   email: string,
   fn: (token: string) => Promise<T>
 ): Promise<T> {
+  if (USE_AUTH_BACKEND) {
+    const token = await getBackendToken(email);
+    try {
+      return await fn(token);
+    } catch (err: any) {
+      const is401 =
+        err?.name === 'UnauthorizedError' ||
+        err?.message === 'Token expired or revoked' ||
+        /\b401\b/.test(String(err?.message || ''));
+      if (!is401) throw err;
+      // Access token could have just expired. Force-refresh once and retry.
+      const fresh = await getBackendToken(email, { forceRefresh: true });
+      return fn(fresh);
+    }
+  }
+
   const token = getValidToken(email);
   if (token) {
     try {
@@ -398,3 +451,118 @@ export async function withFreshToken<T>(
   const freshToken = await refreshToken(email);
   return fn(freshToken);
 }
+
+// ─── Backend token cache ────────────────────────────────────
+
+interface CachedBackendToken {
+  access_token: string;
+  expires_at: number;
+}
+const backendTokenCache = new Map<string, CachedBackendToken>();
+const backendFetchInFlight = new Map<string, Promise<string>>();
+
+/**
+ * Get a valid access token for `email` from the Worker backend. Caches
+ * in memory until just before expiry, and deduplicates concurrent
+ * requests for the same account.
+ */
+async function getBackendToken(email: string, opts?: { forceRefresh?: boolean }): Promise<string> {
+  const cached = backendTokenCache.get(email);
+  if (!opts?.forceRefresh && cached && cached.expires_at > Date.now() + TOKEN_EXPIRY_BUFFER_MS) {
+    return cached.access_token;
+  }
+  const existing = backendFetchInFlight.get(email);
+  if (existing && !opts?.forceRefresh) return existing;
+
+  const promise = (async () => {
+    const res = await backend.getAccessToken(email);
+    backendTokenCache.set(email, { access_token: res.access_token, expires_at: res.expires_at });
+    // Also mirror into localStorage so the rest of the app (which reads
+    // StoredAccount.access_token directly) keeps working unchanged.
+    const accounts = getAccounts();
+    const idx = accounts.findIndex((a) => a.email === email);
+    if (idx >= 0) {
+      accounts[idx] = {
+        ...accounts[idx],
+        access_token: res.access_token,
+        token_expiry: res.expires_at,
+      };
+      saveAccounts(accounts);
+    }
+    return res.access_token;
+  })();
+
+  backendFetchInFlight.set(email, promise);
+  promise.finally(() => backendFetchInFlight.delete(email));
+  return promise;
+}
+
+/**
+ * Sync the list of backend-connected accounts into localStorage so the
+ * existing UI (which reads from localStorage) shows them. Call once at
+ * app startup, and after any auth flow.
+ */
+export async function syncBackendAccounts(): Promise<StoredAccount[]> {
+  if (!USE_AUTH_BACKEND) return getAccounts();
+  try {
+    const backendAccounts = await backend.listAccounts();
+    const existing = getAccounts();
+    const merged: StoredAccount[] = backendAccounts.map((ba, i) => {
+      const prev = existing.find((e) => e.email === ba.email);
+      return {
+        email: ba.email,
+        name: ba.name,
+        picture: ba.picture,
+        access_token: prev?.access_token || '',
+        // Force a backend refresh on next use by marking as expired
+        token_expiry: prev?.token_expiry || 0,
+        color: prev?.color || ACCOUNT_COLORS[i % ACCOUNT_COLORS.length],
+      };
+    });
+    saveAccounts(merged);
+    return merged;
+  } catch (e) {
+    console.warn('Failed to sync backend accounts:', e);
+    return getAccounts();
+  }
+}
+
+/**
+ * Start the backend OAuth flow (redirects the browser to Google).
+ */
+export async function backendStartAuth(): Promise<void> {
+  const url = await backend.startAuth(window.location.href);
+  window.location.href = url;
+}
+
+/**
+ * Remove a backend-managed account (revokes refresh token with Google).
+ */
+export async function backendRevokeAccount(email: string): Promise<void> {
+  await backend.revokeAccount(email);
+  backendTokenCache.delete(email);
+  const remaining = getAccounts().filter((a) => a.email !== email);
+  saveAccounts(remaining);
+}
+
+/**
+ * Refresh access tokens for multiple accounts via the backend. Returns
+ * the emails whose refresh SUCCEEDED.
+ */
+export async function refreshTokensViaBackend(emails: string[]): Promise<string[]> {
+  if (!USE_AUTH_BACKEND) return [];
+  const results = await Promise.all(
+    emails.map(async (email) => {
+      try {
+        await getBackendToken(email, { forceRefresh: true });
+        return email;
+      } catch {
+        return null;
+      }
+    })
+  );
+  return results.filter((e): e is string => e !== null);
+}
+
+/** Public flag so consumers can pick the right refresh path. */
+export const USE_AUTH_BACKEND_FLAG = USE_AUTH_BACKEND;

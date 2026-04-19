@@ -106,11 +106,24 @@ npm run build
 
 Or use GitHub Actions for automatic deployment on push.
 
+## Optional: Permanent Authentication
+
+By default the app uses Google's browser-only OAuth flow — access
+tokens last 1 hour and the app silently refreshes them while your
+Google session is active. If you're signed out of Google, you'll need
+to re-authenticate.
+
+For **true permanent authentication** (token stays valid until you
+revoke it in Google account settings), deploy the optional Cloudflare
+Worker backend in [`worker/`](worker/README.md). It's free, deploys in
+one command, and holds refresh tokens server-side. Then set
+`VITE_AUTH_BACKEND_URL` in your `.env.local` to the deployed Worker URL.
+
 ## Important Notes
 
 - **Test mode**: While the OAuth consent screen is in "Testing" status, only the test users you added can log in. To allow anyone, you'd need to publish the app (requires Google review).
-- **Token expiry**: Access tokens expire after ~1 hour. The app will prompt you to re-login when needed.
-- **Privacy**: All data stays in your browser. The app makes direct API calls to Google and Gemini — no intermediate server.
+- **Token expiry**: Access tokens expire after ~1 hour. The app refreshes them silently while your Google session is active, or permanently via the Cloudflare Worker backend (see above).
+- **Privacy**: All data stays in your browser. The app makes direct API calls to Google and Gemini — no intermediate server (except for token refresh if you enable the Worker, which only sees OAuth tokens, never your email/calendar data).
 
 ## License
 
