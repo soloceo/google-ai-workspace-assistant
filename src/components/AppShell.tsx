@@ -176,6 +176,21 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
   const [pageTokens, setPageTokens] = useState<Record<string, string | null>>({});
   const [hasMore, setHasMore] = useState(false);
 
+  // Accounts whose tokens are expired and need re-auth. Shown as a single
+  // in-app banner (not a recurring toast) to avoid spamming the user.
+  const [expiredAccounts, setExpiredAccounts] = useState<string[]>([]);
+  const [expiredBannerDismissed, setExpiredBannerDismissed] = useState(false);
+  const lastExpiredSetRef = useRef<string>("");
+  // Reset "dismissed" whenever the set of expired accounts changes, so newly
+  // expired accounts surface the banner again even if previously dismissed.
+  useEffect(() => {
+    const key = [...expiredAccounts].sort().join(",");
+    if (key !== lastExpiredSetRef.current) {
+      lastExpiredSetRef.current = key;
+      setExpiredBannerDismissed(false);
+    }
+  }, [expiredAccounts]);
+
   // Abort
   const abortRef = useRef<AbortController | null>(null);
   const calendarCreateRef = useRef<(() => void) | null>(null);
@@ -230,25 +245,30 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
 
     setLoading(true);
     try {
-      // Use ALL stored accounts (not just ones with valid tokens) so that
-      // per-account failures surface as re-auth prompts rather than silently
-      // hiding that account's data. `getAllValidAccounts()` would quietly
-      // drop expired accounts, making their events/emails/tasks "disappear".
-      const accounts = authService.getAccounts();
-      if (accounts.length === 0) return;
+      // Split accounts into valid (non-expired token) and expired. We only
+      // call APIs for valid ones — hitting Google with a known-dead token
+      // just wastes a round trip and a 401. Expired accounts surface via
+      // the re-auth banner (see `expiredAccounts` state below) instead of
+      // through a toast that re-fires on every auto-refresh.
+      const allAccounts = authService.getAccounts();
+      if (allAccounts.length === 0) return;
+      const validAccounts = authService.getAllValidAccounts();
+      const expiredAcctEmails = allAccounts
+        .filter(a => !validAccounts.find(v => v.email === a.email))
+        .map(a => a.email);
 
       const [mailResult, calResult, tasksResult] = await Promise.all([
-        gmail.fetchAllAccountEmails(accounts, {
+        gmail.fetchAllAccountEmails(validAccounts, {
           q: query || undefined,
           labelIds: ["INBOX"],
           accountFilter: accountFilter !== "all" ? accountFilter : undefined,
           signal: controller.signal,
         }),
-        calendarService.fetchAllAccountEvents(accounts, {
+        calendarService.fetchAllAccountEvents(validAccounts, {
           accountFilter: accountFilter !== "all" ? accountFilter : undefined,
           signal: controller.signal,
         }),
-        tasksService.fetchAllAccountTasks(accounts, {
+        tasksService.fetchAllAccountTasks(validAccounts, {
           accountFilter: accountFilter !== "all" ? accountFilter : undefined,
           showCompleted: true,
           signal: controller.signal,
@@ -263,22 +283,15 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
         setTaskLists(tasksResult.taskLists);
         setTaskItems(tasksResult.tasks);
 
-        // Aggregate accounts that failed across any of the three APIs
-        // and warn the user so they can re-authenticate.
+        // Combine pre-known expired accounts with any that failed mid-fetch
+        // (e.g. token expired between the expiry check and the actual call).
         const failed = new Set<string>([
+          ...expiredAcctEmails,
           ...(mailResult.failedAccounts || []),
           ...(calResult.failedAccounts || []),
           ...(tasksResult.failedAccounts || []),
         ]);
-        if (failed.size > 0) {
-          const emails = [...failed].join(", ");
-          toast.error(
-            lang === "zh"
-              ? `账号 ${emails} 需要重新授权，数据可能不完整`
-              : `Account ${emails} needs re-authentication — data may be incomplete`,
-            { duration: 6000 }
-          );
-        }
+        setExpiredAccounts([...failed]);
       }
     } catch (e: any) {
       if (e.name !== "AbortError") {
@@ -288,7 +301,7 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
-  }, [isDemo, accountFilter, t, lang]);
+  }, [isDemo, accountFilter, t]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -596,6 +609,31 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
       toast.success(t.actionSuccess);
     } catch { toast.error(t.actionFailed); }
   }, [isDemo, taskLists, t]);
+
+  // ── Re-authenticate expired accounts ──
+  // Triggers the GIS consent flow for each expired account in sequence.
+  // `withFreshToken` handles the token refresh internally — we force it by
+  // wrapping a no-op call that will trigger the refresh path.
+  const handleReauthExpired = useCallback(async () => {
+    if (isDemo) return;
+    try {
+      for (const email of expiredAccounts) {
+        // Force a token refresh by requesting a fresh token via withFreshToken.
+        // The `fetchUserProfile` call is cheap and validates the new token.
+        await authService.withFreshToken(email, async (token) => {
+          return authService.fetchUserProfile(token);
+        });
+      }
+      setExpiredAccounts([]);
+      setExpiredBannerDismissed(false);
+      toast.success(lang === "zh" ? "授权成功，正在同步数据…" : "Re-authenticated, syncing data…");
+      fetchData(searchQuery);
+    } catch (e: any) {
+      if (e?.message !== "User cancelled") {
+        toast.error(lang === "zh" ? "重新授权失败" : "Re-authentication failed");
+      }
+    }
+  }, [isDemo, expiredAccounts, lang, fetchData, searchQuery]);
 
   // ── Account Management ──
   const handleAddAccount = useCallback(async () => {
@@ -1055,6 +1093,35 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
             )}
           </div>
         </header>
+
+        {/* ── Re-auth Banner ── */}
+        {!isDemo && expiredAccounts.length > 0 && !expiredBannerDismissed && (
+          <div className="flex-shrink-0 flex items-center gap-2 px-3 sm:px-4 py-2 bg-amber-500/10 border-b border-amber-500/20">
+            <div className="size-5 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+              <span className="text-amber-600 text-xs font-semibold">!</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] sm:text-xs text-[var(--text-body)] truncate">
+                {lang === "zh"
+                  ? `${expiredAccounts.length} 个账号需要重新授权以同步数据`
+                  : `${expiredAccounts.length} account${expiredAccounts.length > 1 ? "s" : ""} need${expiredAccounts.length > 1 ? "" : "s"} re-authentication`}
+              </p>
+            </div>
+            <button
+              onClick={handleReauthExpired}
+              className="text-xs font-medium text-amber-700 dark:text-amber-400 hover:underline whitespace-nowrap flex-shrink-0"
+            >
+              {lang === "zh" ? "重新登录" : "Re-authenticate"}
+            </button>
+            <button
+              onClick={() => setExpiredBannerDismissed(true)}
+              className="size-7 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] rounded-[4px] t-transition flex-shrink-0"
+              title={lang === "zh" ? "关闭" : "Dismiss"}
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+        )}
 
         {/* ── Content ── */}
         <main className="flex-1 overflow-hidden">
