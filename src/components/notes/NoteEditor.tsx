@@ -34,6 +34,10 @@ interface NoteEditorProps {
   geminiReady: boolean;           // whether OCR is available
   /** Default tax rate to prefill when user first picks 'accounting'. */
   defaultTaxRate?: number;
+  /** If set, force the note into this category and hide the picker.
+   *  Used by the Ledger mode in NotesView to create accounting entries
+   *  without letting the user switch away. */
+  lockedCategory?: NoteCategory;
   onSave: (data: {
     id?: string;
     title: string;
@@ -53,11 +57,15 @@ interface NoteEditorProps {
   onClose: () => void;
 }
 
-export default function NoteEditor({ lang, note, geminiReady, defaultTaxRate = 13, onSave, onDelete, onClose }: NoteEditorProps) {
+export default function NoteEditor({ lang, note, geminiReady, defaultTaxRate = 13, lockedCategory, onSave, onDelete, onClose }: NoteEditorProps) {
   const t = translations[lang];
   const [title, setTitle] = useState(note?.title || "");
   const [text, setText] = useState(note?.text || "");
-  const [category, setCategory] = useState<NoteCategory>(note?.category || "other");
+  // Locked category takes priority (e.g. Ledger mode forces 'accounting').
+  // Otherwise existing notes keep their category; new notes default to 'other'.
+  const [category, setCategory] = useState<NoteCategory>(
+    lockedCategory || note?.category || "other"
+  );
   const [photos, setPhotos] = useState<string[]>(note?.photos || []);
   const [photoTexts, setPhotoTexts] = useState<string[]>(note?.photoTexts || []);
   const [saving, setSaving] = useState(false);
@@ -217,23 +225,25 @@ export default function NoteEditor({ lang, note, geminiReady, defaultTaxRate = 1
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-3 space-y-3">
-          {/* Category chips */}
-          <div className="flex gap-1.5 overflow-x-auto no-scrollbar -mx-1 px-1">
-            {CATEGORIES.map(cat => (
-              <button
-                key={cat.id}
-                onClick={() => setCategory(cat.id)}
-                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium t-transition ${
-                  category === cat.id
-                    ? "bg-[var(--blue)] text-white"
-                    : "bg-[var(--bg-alt)] text-[var(--text-tertiary)]"
-                }`}
-              >
-                <span>{cat.emoji}</span>
-                <span>{(t as any)[cat.labelKey]}</span>
-              </button>
-            ))}
-          </div>
+          {/* Category chips — hidden when locked (Ledger mode) */}
+          {!lockedCategory && (
+            <div className="flex gap-1.5 overflow-x-auto no-scrollbar -mx-1 px-1">
+              {CATEGORIES.map(cat => (
+                <button
+                  key={cat.id}
+                  onClick={() => setCategory(cat.id)}
+                  className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium t-transition ${
+                    category === cat.id
+                      ? "bg-[var(--blue)] text-white"
+                      : "bg-[var(--bg-alt)] text-[var(--text-tertiary)]"
+                  }`}
+                >
+                  <span>{cat.emoji}</span>
+                  <span>{(t as any)[cat.labelKey]}</span>
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Title */}
           <input

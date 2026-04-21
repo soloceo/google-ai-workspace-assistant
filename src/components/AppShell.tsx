@@ -179,6 +179,12 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
   const [pageTokens, setPageTokens] = useState<Record<string, string | null>>({});
   const [hasMore, setHasMore] = useState(false);
 
+  // Dashboard preview of notes/ledger. Loaded after auth resolves and
+  // after returning from the Journal tab.
+  const [dashboardNotes, setDashboardNotes] = useState<import("../types").Note[]>([]);
+  // Which mode Journal should open in — set by Dashboard mini-cards.
+  const [journalInitialMode, setJournalInitialMode] = useState<"notes" | "ledger">("notes");
+
   // Accounts whose tokens are expired and need re-auth. Shown as a single
   // in-app banner (not a recurring toast) to avoid spamming the user.
   const [expiredAccounts, setExpiredAccounts] = useState<string[]>([]);
@@ -328,6 +334,23 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
   }, [isDemo, accountFilter, t]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Refresh the dashboard's notes preview whenever the user lands on the
+  // Dashboard or returns from the Journal tab. Cheap — the Worker's list
+  // endpoint is one round-trip that sends only text (no photo payloads
+  // contribute to the in-memory size, but this is an MVP — fine.)
+  useEffect(() => {
+    if (isDemo || !authService.USE_AUTH_BACKEND_FLAG) return;
+    if (activeTab !== "dashboard") return;
+    (async () => {
+      try {
+        const res = await notesApi.listNotes();
+        setDashboardNotes(res.notes);
+      } catch (e) {
+        console.warn("Failed to load notes for dashboard:", e);
+      }
+    })();
+  }, [activeTab, isDemo]);
 
   // ── Proactive silent token refresh ──
   // Google browser-flow access tokens last 1 hour with no refresh_token.
@@ -1328,9 +1351,11 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
               calendarEvents={calendarEvents}
               taskItems={taskItems}
               taskLists={taskLists}
+              notes={dashboardNotes}
               loading={loading}
               lang={lang}
               onNavigate={setActiveTab}
+              onOpenJournal={(m) => { setJournalInitialMode(m); setActiveTab("notes"); }}
             />
           )}
           {activeTab === "mail" && (
@@ -1391,6 +1416,7 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
             <NotesView
               lang={lang}
               geminiApiKey={geminiApiKey}
+              initialMode={journalInitialMode}
               onOpenSettings={() => setShowSettings(true)}
             />
           )}

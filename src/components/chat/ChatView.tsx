@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Sparkles, Send, Trash2, Loader2, User, Bot,
-  CheckSquare, Calendar, Mail, Lightbulb, ChevronRight, KeyRound,
+  CheckSquare, Calendar, Mail, Lightbulb, ChevronRight, KeyRound, NotebookPen,
 } from "lucide-react";
 import { toast } from "sonner";
 import { translations, type Language } from "../../translations";
@@ -329,12 +329,27 @@ export default function ChatView({ isDemo, lang, geminiApiKey, aiModel, workspac
         { text: t.aiExAnalysis3, prompt: lang === "zh" ? "帮我规划这周的工作" : "Plan my week ahead" },
       ],
     },
+    {
+      icon: NotebookPen,
+      label: t.notes,
+      color: "text-purple-500",
+      bg: "bg-purple-500/10",
+      examples: [
+        { text: lang === "zh" ? "我这个月花了多少？" : "How much did I spend this month?",
+          prompt: lang === "zh" ? "我这个月的账目支出是多少？按分类列出" : "Summarize this month's expenses by category" },
+        { text: lang === "zh" ? "本月佣金收入" : "This month's commission income",
+          prompt: lang === "zh" ? "本月收到的佣金总额是多少？" : "What's my total commission income this month?" },
+        { text: lang === "zh" ? "搜索我拍过的照片" : "Search my saved photos",
+          prompt: lang === "zh" ? "我上次拍的商品是什么？" : "What products did I photograph recently?" },
+      ],
+    },
   ];
 
   // Quick chips for when messages exist
   const quickChips = [
     { label: t.chipTodayFocus, prompt: lang === "zh" ? "帮我总结今天的重点事项" : "Summarize my focus for today" },
-    { label: t.chipWeekPlan, prompt: lang === "zh" ? "帮我规划这周的安排" : "Plan my week" },
+    { label: lang === "zh" ? "本月账目" : "This month's ledger",
+      prompt: lang === "zh" ? "本月收入、支出和净收分别是多少？" : "What's my income, expense, and net this month?" },
     { label: t.chipUnreadSummary, prompt: lang === "zh" ? "总结我未读的邮件" : "Summarize my unread emails" },
     { label: t.chipScheduleConflicts, prompt: lang === "zh" ? "检查我的日程是否有冲突" : "Check for schedule conflicts" },
   ];

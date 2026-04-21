@@ -1,10 +1,11 @@
 import {
   CheckSquare, Calendar as CalendarIcon, Mail, ChevronRight,
-  Clock, FileText, Sparkles, Loader2,
+  Clock, FileText, Sparkles, NotebookPen, Receipt,
 } from "lucide-react";
 import { translations, type Language } from "../../translations";
 import type { Task, TaskList } from "../../services/tasks";
 import type { AppTab } from "../AppShell";
+import { computeNoteTaxBreakdown } from "../../types";
 
 // Extracted outside component to prevent unmount/remount on every render
 function SectionHeader({ icon: Icon, title, count, tab, onNavigate, viewAllLabel }: {
@@ -34,9 +35,12 @@ interface DashboardViewProps {
   calendarEvents: any[];
   taskItems: Task[];
   taskLists: (TaskList & { accountEmail: string; accountColor: string })[];
+  notes?: import("../../types").Note[];
   loading: boolean;
   lang: Language;
   onNavigate: (tab: AppTab) => void;
+  /** Open the Journal tab in a specific mode (notes or ledger). */
+  onOpenJournal?: (mode: "notes" | "ledger") => void;
 }
 
 function isSameDay(a: Date, b: Date): boolean {
@@ -63,7 +67,7 @@ function extractSenderName(from: string): string {
 }
 
 export default function DashboardView({
-  emails, calendarEvents, taskItems, taskLists, loading, lang, onNavigate,
+  emails, calendarEvents, taskItems, taskLists, notes = [], loading, lang, onNavigate, onOpenJournal,
 }: DashboardViewProps) {
   const t = translations[lang];
   const now = new Date();
@@ -91,6 +95,24 @@ export default function DashboardView({
     });
 
   const unreadEmails = emails.filter(e => e.labelIds?.includes("UNREAD"));
+
+  // Journal stats — notes count + this-month ledger net
+  const plainNotes = notes.filter(n => n.category !== "accounting");
+  const ledgerNotes = notes.filter(n => n.category === "accounting" && typeof n.amount === "number");
+  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  let monthIncome = 0, monthExpense = 0;
+  for (const n of ledgerNotes) {
+    const d = n.txDate || new Date(n.updated_at).toISOString().slice(0, 10);
+    if (!d.startsWith(ym)) continue;
+    const { total } = computeNoteTaxBreakdown(n);
+    if (n.txType === "income") monthIncome += total;
+    else monthExpense += total;
+  }
+  const monthNet = monthIncome - monthExpense;
+  const recentNotes = plainNotes
+    .slice()
+    .sort((a, b) => b.updated_at - a.updated_at)
+    .slice(0, 3);
 
   const greeting = t.dashboardGreeting.replace("{timeOfDay}", getTimeOfDay(lang));
   const dateStr = now.toLocaleDateString(locale, {
@@ -306,6 +328,71 @@ export default function DashboardView({
             </div>
           )}
         </section>
+
+        {/* ── Journal (Notes + Ledger) ── */}
+        {onOpenJournal && (
+          <section className="pt-2 border-t border-[var(--border-light)]">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <NotebookPen className="size-4 text-[var(--blue)]" />
+                <h3 className="text-[15px] sm:text-sm font-semibold text-[var(--text-primary)]">{t.notes}</h3>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+              {/* Notes mini-card */}
+              <button
+                onClick={() => onOpenJournal("notes")}
+                className="p-3 bg-[var(--bg-alt)] hover:bg-[var(--bg-active)] active:bg-[var(--bg-active)] rounded-[4px] text-left t-transition active:scale-[0.97]"
+              >
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <NotebookPen className="size-3.5 text-[var(--blue)]" />
+                  <span className="text-[11px] text-[var(--text-tertiary)] font-medium uppercase tracking-wide">
+                    {t.notesTabNotes}
+                  </span>
+                </div>
+                <p className="text-xl sm:text-2xl font-semibold text-[var(--text-primary)] tabular-nums">
+                  {plainNotes.length}
+                </p>
+                {recentNotes.length > 0 && (
+                  <p className="text-[11px] text-[var(--text-quaternary)] truncate mt-0.5">
+                    {recentNotes[0].title || recentNotes[0].text.slice(0, 30) || (lang === "zh" ? "(无标题)" : "(untitled)")}
+                  </p>
+                )}
+              </button>
+
+              {/* Ledger mini-card — shows this month's net */}
+              <button
+                onClick={() => onOpenJournal("ledger")}
+                className={`p-3 rounded-[4px] text-left t-transition active:scale-[0.97] ${
+                  monthNet >= 0
+                    ? "bg-emerald-500/10 hover:bg-emerald-500/15"
+                    : "bg-red-500/10 hover:bg-red-500/15"
+                }`}
+              >
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <Receipt className={`size-3.5 ${monthNet >= 0 ? "text-emerald-600" : "text-red-500"}`} />
+                  <span className="text-[11px] text-[var(--text-tertiary)] font-medium uppercase tracking-wide">
+                    {t.notesTabLedger} · {t.noteSummaryPeriod}
+                  </span>
+                </div>
+                <p className={`text-xl sm:text-2xl font-semibold tabular-nums ${
+                  monthNet >= 0 ? "text-emerald-600" : "text-red-500"
+                }`}>
+                  {monthNet >= 0 ? "+" : "−"}
+                  {new Intl.NumberFormat(lang === "zh" ? "zh-CN" : "en-CA", {
+                    style: "currency", currency: "CAD", maximumFractionDigits: 0,
+                  }).format(Math.abs(monthNet))}
+                </p>
+                <p className="text-[11px] text-[var(--text-quaternary)] truncate mt-0.5 tabular-nums">
+                  ↑{new Intl.NumberFormat(lang === "zh" ? "zh-CN" : "en-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 }).format(monthIncome)}
+                  {"  "}
+                  ↓{new Intl.NumberFormat(lang === "zh" ? "zh-CN" : "en-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 }).format(monthExpense)}
+                </p>
+              </button>
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );
