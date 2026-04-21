@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { Plus, Search, Loader2, NotebookPen, KeyRound, Download, Upload } from "lucide-react";
+import { Plus, Search, Loader2, NotebookPen, KeyRound, Download, Upload, Database, Check } from "lucide-react";
 import { toast } from "sonner";
 import { translations, type Language } from "../../translations";
 import type { Note, NoteCategory } from "../../types";
@@ -31,11 +31,19 @@ export default function NotesView({ lang, geminiApiKey, onOpenSettings }: NotesV
   const [editing, setEditing] = useState<Note | null>(null);
   const [creating, setCreating] = useState(false);
 
+  const [ownerCounts, setOwnerCounts] = useState<Record<string, number>>({});
+  const [connectedEmails, setConnectedEmails] = useState<string[]>([]);
+  const [primaryOwner, setPrimaryOwner] = useState<string | null>(null);
+  const [migrating, setMigrating] = useState(false);
+
   const refresh = useCallback(async () => {
     if (!USE_AUTH_BACKEND) { setLoading(false); return; }
     try {
-      const list = await notesApi.listNotes();
-      setNotes(list);
+      const result = await notesApi.listNotes();
+      setNotes(result.notes);
+      setOwnerCounts(result.ownerCounts);
+      setConnectedEmails(result.connectedEmails);
+      setPrimaryOwner(result.primaryOwner);
     } catch (e: any) {
       console.error(e);
       toast.error(lang === "zh" ? "加载笔记失败" : "Failed to load notes");
@@ -115,6 +123,25 @@ export default function NotesView({ lang, geminiApiKey, onOpenSettings }: NotesV
     }
   }, [lang, refresh]);
 
+  const handleMigrate = useCallback(async (target: string) => {
+    if (target === primaryOwner) return;
+    const totalNotes = Object.values(ownerCounts).reduce((a, b) => a + b, 0);
+    const msg = lang === "zh"
+      ? `将 ${totalNotes} 条笔记迁移到 ${target}？\n之后新建的笔记也会保存在这个邮箱下。`
+      : `Move all ${totalNotes} notes to ${target}?\nFuture notes will also be stored under this account.`;
+    if (!confirm(msg)) return;
+    setMigrating(true);
+    try {
+      const res = await notesApi.migrateNotes(target);
+      toast.success(lang === "zh" ? `已迁移 ${res.moved} 条笔记到 ${target}` : `Moved ${res.moved} notes to ${target}`);
+      await refresh();
+    } catch (e: any) {
+      toast.error(e.message || (lang === "zh" ? "迁移失败" : "Migration failed"));
+    } finally {
+      setMigrating(false);
+    }
+  }, [primaryOwner, ownerCounts, lang, refresh]);
+
   // Backend not configured → friendly message
   if (!USE_AUTH_BACKEND) {
     return (
@@ -131,6 +158,8 @@ export default function NotesView({ lang, geminiApiKey, onOpenSettings }: NotesV
 
   const showEditor = creating || editing;
 
+  const [ownerMenuOpen, setOwnerMenuOpen] = useState(false);
+
   return (
     <div className="h-full flex flex-col">
       {/* Header: search + category chips */}
@@ -146,6 +175,66 @@ export default function NotesView({ lang, geminiApiKey, onOpenSettings }: NotesV
             />
           </div>
         </div>
+
+        {/* Storage indicator — only shown when user has 2+ connected accounts */}
+        {connectedEmails.length > 1 && primaryOwner && (
+          <div className="px-3 sm:px-4 pb-1.5 relative">
+            <button
+              onClick={() => setOwnerMenuOpen(v => !v)}
+              disabled={migrating}
+              className="flex items-center gap-1.5 text-[11px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] t-transition"
+            >
+              <Database className="size-3" />
+              <span>
+                {lang === "zh" ? "存储在" : "Stored in"}
+              </span>
+              <span className="font-medium text-[var(--text-body)] truncate max-w-[200px]">
+                {primaryOwner}
+              </span>
+              {migrating && <Loader2 className="size-3 animate-spin" />}
+              <span className="text-[var(--text-quaternary)]">▾</span>
+            </button>
+            {ownerMenuOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setOwnerMenuOpen(false)}
+                />
+                <div className="absolute left-3 sm:left-4 top-full mt-1 z-20 min-w-[260px] max-w-[90vw] bg-[var(--bg)] border border-[var(--border-light)] rounded-[4px] shadow-lg overflow-hidden">
+                  <div className="px-3 py-2 border-b border-[var(--border-light)]">
+                    <p className="text-[11px] text-[var(--text-tertiary)] leading-snug">
+                      {lang === "zh"
+                        ? "选择笔记存储在哪个 Google 账号下。切换会迁移所有笔记。"
+                        : "Pick which Google account owns your notebook. Switching will move all notes."}
+                    </p>
+                  </div>
+                  {connectedEmails.map(email => {
+                    const count = ownerCounts[email] || 0;
+                    const isCurrent = email === primaryOwner;
+                    return (
+                      <button
+                        key={email}
+                        onClick={() => { setOwnerMenuOpen(false); handleMigrate(email); }}
+                        disabled={isCurrent || migrating}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-[var(--bg-alt)] active:bg-[var(--bg-alt)] t-transition disabled:opacity-100 disabled:cursor-default"
+                      >
+                        <div className="size-4 flex-shrink-0 flex items-center justify-center">
+                          {isCurrent && <Check className="size-4 text-[var(--blue)]" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[var(--text-body)] truncate text-[13px]">{email}</p>
+                        </div>
+                        <span className="flex-shrink-0 text-[11px] text-[var(--text-quaternary)]">
+                          {count} {lang === "zh" ? "条" : count === 1 ? "note" : "notes"}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        )}
         <div className="flex items-center gap-1.5 px-3 sm:px-4 pb-2">
           <div className="flex gap-1.5 overflow-x-auto no-scrollbar flex-1 min-w-0">
             {CATEGORIES.map(cat => (

@@ -1017,7 +1017,8 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
             return { success: false, message: "Notes feature requires the Worker backend. Notebook is not configured." };
           }
           try {
-            let all = await notesApi.listNotes();
+            const result = await notesApi.listNotes();
+            let all = result.notes;
             if (args.category && ["product", "idea", "task", "other"].includes(args.category)) {
               all = all.filter(n => n.category === args.category);
             }

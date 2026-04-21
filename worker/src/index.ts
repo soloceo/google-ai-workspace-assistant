@@ -446,6 +446,30 @@ async function getSessionEmails(env: Env, sid: string): Promise<string[]> {
 }
 
 /**
+ * Decide which email new notes should be saved under.
+ * Rule: pick the email that already owns the most notes (so writes follow
+ * where the data lives). Fall back to alphabetically-first if no notes
+ * exist anywhere yet.
+ */
+async function getPrimaryOwnerForSession(env: Env, sid: string): Promise<string | null> {
+  const emails = await getSessionEmails(env, sid);
+  if (emails.length === 0) return null;
+
+  const counts = await Promise.all(
+    emails.map(async (email) => {
+      const { keys } = await env.TOKENS.list({ prefix: `note:owner:${email}:`, limit: 1000 });
+      return { email, count: keys.length };
+    })
+  );
+
+  counts.sort((a, b) => {
+    if (b.count !== a.count) return b.count - a.count;
+    return a.email.localeCompare(b.email);
+  });
+  return counts[0].email;
+}
+
+/**
  * Move old session-keyed notes to the new email-keyed namespace.
  * Idempotent — runs on each listNotes call but is cheap when there's
  * nothing to migrate (single KV list returns zero keys).
@@ -510,20 +534,32 @@ async function handleListNotes(req: Request, env: Env): Promise<Response> {
     allNotes.push(...batch.filter((n): n is StoredNote => n !== null));
   }
   allNotes.sort((a, b) => b.updated_at - a.updated_at);
-  return json(env, { notes: allNotes });
+
+  // Count notes per owner email so the client can show where storage
+  // currently lives and let the user switch it.
+  const ownerCounts: Record<string, number> = {};
+  for (const n of allNotes) {
+    if (n.owner) ownerCounts[n.owner] = (ownerCounts[n.owner] || 0) + 1;
+  }
+
+  return json(env, {
+    notes: allNotes,
+    ownerCounts,
+    connectedEmails: emails,
+    primaryOwner: await getPrimaryOwnerForSession(env, sid),
+  });
 }
 
 async function handleCreateNote(req: Request, env: Env): Promise<Response> {
   const sid = getSessionId(req);
   if (!sid) return json(env, { error: 'No session' }, { status: 401 });
 
-  const emails = await getSessionEmails(env, sid);
-  if (emails.length === 0) return json(env, { error: 'Must log in with a Google account first' }, { status: 401 });
+  // Writes go to whichever email already owns the most notes — so new
+  // notes follow existing data. If no notes exist yet, falls back to
+  // the alphabetically-first connected email.
+  const owner = await getPrimaryOwnerForSession(env, sid);
+  if (!owner) return json(env, { error: 'Must log in with a Google account first' }, { status: 401 });
 
-  // New notes belong to the first connected email (alphabetically).
-  // Users with multiple accounts will see all their notes on list but
-  // writes go to a single, predictable namespace.
-  const owner = emails[0];
   const body = (await req.json().catch(() => ({}))) as Record<string, any>;
   const note = sanitizeNote(body);
 
@@ -568,6 +604,46 @@ async function handleDeleteNote(req: Request, env: Env, noteId: string): Promise
   return json(env, { ok: true });
 }
 
+/**
+ * Move every note owned by any of the user's connected emails to a
+ * single target email. Lets the user choose which of their Google
+ * accounts "owns" the notebook, so they can safely disconnect other
+ * accounts without losing data.
+ *
+ * The target MUST be currently connected in the session — this
+ * prevents the user from moving notes to an email they no longer
+ * control.
+ */
+async function handleMigrateNotes(req: Request, env: Env): Promise<Response> {
+  const sid = getSessionId(req);
+  if (!sid) return json(env, { error: 'No session' }, { status: 401 });
+
+  const body = (await req.json().catch(() => ({}))) as { to?: string };
+  const target = body.to;
+  if (!target) return json(env, { error: 'target email required' }, { status: 400 });
+
+  const emails = await getSessionEmails(env, sid);
+  if (!emails.includes(target)) {
+    return json(env, { error: 'Target email not authenticated in this session' }, { status: 403 });
+  }
+
+  let moved = 0;
+  for (const email of emails) {
+    if (email === target) continue;
+    const { keys } = await env.TOKENS.list({ prefix: `note:owner:${email}:` });
+    for (const k of keys) {
+      const value = await env.TOKENS.get(k.name);
+      if (!value) continue;
+      const noteId = k.name.substring(`note:owner:${email}:`.length);
+      await env.TOKENS.put(`note:owner:${target}:${noteId}`, value);
+      await env.TOKENS.delete(k.name);
+      moved += 1;
+    }
+  }
+
+  return json(env, { ok: true, moved, target });
+}
+
 // ─── Router ─────────────────────────────────────────────────
 
 export default {
@@ -589,6 +665,7 @@ export default {
       // Notes
       if (url.pathname === '/notes' && request.method === 'GET') return handleListNotes(request, env);
       if (url.pathname === '/notes' && request.method === 'POST') return handleCreateNote(request, env);
+      if (url.pathname === '/notes/migrate' && request.method === 'POST') return handleMigrateNotes(request, env);
       const noteMatch = url.pathname.match(/^\/notes\/([A-Za-z0-9_-]+)$/);
       if (noteMatch && request.method === 'PATCH') return handleUpdateNote(request, env, noteMatch[1]);
       if (noteMatch && request.method === 'DELETE') return handleDeleteNote(request, env, noteMatch[1]);

@@ -33,9 +33,21 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export async function listNotes(): Promise<Note[]> {
-  const res = await request<{ notes: Note[] }>('/notes');
-  return res.notes || [];
+export interface NotesListResult {
+  notes: Note[];
+  ownerCounts: Record<string, number>; // email → note count
+  connectedEmails: string[];            // every Google account connected in this session
+  primaryOwner: string | null;          // email that new notes will be saved under
+}
+
+export async function listNotes(): Promise<NotesListResult> {
+  const res = await request<Partial<NotesListResult>>('/notes');
+  return {
+    notes: res.notes || [],
+    ownerCounts: res.ownerCounts || {},
+    connectedEmails: res.connectedEmails || [],
+    primaryOwner: res.primaryOwner || null,
+  };
 }
 
 export async function createNote(input: {
@@ -68,6 +80,19 @@ export async function updateNote(id: string, patch: {
 
 export async function deleteNote(id: string): Promise<void> {
   await request(`/notes/${id}`, { method: 'DELETE' });
+}
+
+/**
+ * Consolidate every note in the session under a single Google email.
+ * Target must be an email that's currently authenticated in the session;
+ * the Worker will reject otherwise.
+ */
+export async function migrateNotes(toEmail: string): Promise<{ moved: number; target: string }> {
+  const res = await request<{ moved: number; target: string }>('/notes/migrate', {
+    method: 'POST',
+    body: JSON.stringify({ to: toEmail }),
+  });
+  return res;
 }
 
 /**
