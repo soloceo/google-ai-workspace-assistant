@@ -69,42 +69,6 @@ export interface Note {
   owner?: string;         // Google email that owns this note
 }
 
-export type TxType = 'income' | 'expense';
-export type TxTaxMode = 'exclusive' | 'inclusive' | 'exempt';
-export type TxPayment = 'cash' | 'credit' | 'bank' | 'cheque' | 'other';
-
-export interface Transaction {
-  id: string;
-  created_at: number;
-  updated_at: number;
-  date: string;              // YYYY-MM-DD
-  type: TxType;
-  amount: number;            // headline amount entered by user
-  taxMode: TxTaxMode;
-  taxRate: number;           // percent
-  payment: TxPayment;
-  category: string;          // free string; preset in UI
-  description?: string;
-  dealId?: string;           // optional link to a Deal
-  owner?: string;
-}
-
-/** Derive the canonical subtotal / tax / total amounts from a transaction. */
-export function computeTaxBreakdown(tx: { amount: number; taxMode: TxTaxMode; taxRate: number }) {
-  const rate = Math.max(0, tx.taxRate) / 100;
-  if (tx.taxMode === 'exempt') {
-    return { subtotal: tx.amount, tax: 0, total: tx.amount };
-  }
-  if (tx.taxMode === 'inclusive') {
-    const subtotal = rate > 0 ? tx.amount / (1 + rate) : tx.amount;
-    const tax = tx.amount - subtotal;
-    return { subtotal, tax, total: tx.amount };
-  }
-  // exclusive
-  const tax = tx.amount * rate;
-  return { subtotal: tx.amount, tax, total: tx.amount + tax };
-}
-
 export type DealType = 'sell' | 'buy' | 'rent' | 'other';
 export type DealStatus = 'active' | 'archived';
 

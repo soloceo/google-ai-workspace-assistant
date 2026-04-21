@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { LayoutDashboard, Mail, Calendar as CalendarIcon, Sparkles, CheckSquare, NotebookPen, Briefcase, Receipt, Settings, LogOut, Languages, Plus, Search, ChevronDown, X, RefreshCw } from "lucide-react";
+import { LayoutDashboard, Mail, Calendar as CalendarIcon, Sparkles, CheckSquare, NotebookPen, Briefcase, Settings, LogOut, Languages, Plus, Search, ChevronDown, X, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { translations, type Language } from "../translations";
 import * as authService from "../services/auth";
@@ -18,11 +18,10 @@ import TasksView from "./tasks/TasksView";
 import ChatView from "./chat/ChatView";
 import NotesView from "./notes/NotesView";
 import DealsView from "./deals/DealsView";
-import TransactionsView from "./accounting/TransactionsView";
 import SettingsPanel from "./settings/SettingsPanel";
 import ComposeModal from "./mail/ComposeModal";
 
-export type AppTab = "dashboard" | "mail" | "calendar" | "tasks" | "deals" | "accounting" | "notes" | "ai";
+export type AppTab = "dashboard" | "mail" | "calendar" | "tasks" | "deals" | "notes" | "ai";
 
 // Demo data
 const DEMO_ACCOUNTS: AccountSummary[] = [
@@ -180,10 +179,6 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
   // Pagination
   const [pageTokens, setPageTokens] = useState<Record<string, string | null>>({});
   const [hasMore, setHasMore] = useState(false);
-
-  // Deal handed off from the Deals tab when it reaches its final stage —
-  // the accounting tab pre-fills a commission income entry from it.
-  const [pendingCommissionDeal, setPendingCommissionDeal] = useState<import("../types").Deal | null>(null);
 
   // Accounts whose tokens are expired and need re-auth. Shown as a single
   // in-app banner (not a recurring toast) to avoid spamming the user.
@@ -1134,7 +1129,6 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
     { id: "calendar", icon: CalendarIcon, label: t.calendar },
     { id: "tasks", icon: CheckSquare, label: t.tasks },
     { id: "deals", icon: Briefcase, label: t.deals },
-    { id: "accounting", icon: Receipt, label: t.accounting },
     { id: "notes", icon: NotebookPen, label: t.notes },
     { id: "ai", icon: Sparkles, label: t.aiChat },
   ];
@@ -1364,21 +1358,7 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
             />
           )}
           {activeTab === "deals" && (
-            <DealsView
-              lang={lang}
-              onCommissionDue={(deal) => {
-                setPendingCommissionDeal(deal);
-                setActiveTab("accounting");
-              }}
-            />
-          )}
-          {activeTab === "accounting" && (
-            <TransactionsView
-              lang={lang}
-              defaultTaxRate={13}
-              pendingCommissionDeal={pendingCommissionDeal}
-              onCommissionRecorded={() => setPendingCommissionDeal(null)}
-            />
+            <DealsView lang={lang} />
           )}
           {activeTab === "notes" && (
             <NotesView
