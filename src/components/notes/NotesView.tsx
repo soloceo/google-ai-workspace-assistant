@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { Plus, Search, Loader2, NotebookPen, KeyRound } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { Plus, Search, Loader2, NotebookPen, KeyRound, Download, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { translations, type Language } from "../../translations";
 import type { Note, NoteCategory } from "../../types";
@@ -87,6 +87,34 @@ export default function NotesView({ lang, geminiApiKey, onOpenSettings }: NotesV
     }
   }, [t]);
 
+  // Export / Import — the safety net for the "don't lose my notes" concern.
+  // Export is instant (all data is already in memory); import is async and
+  // re-uploads each note to the backend.
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+
+  const handleExport = useCallback(() => {
+    if (notes.length === 0) {
+      toast.info(lang === "zh" ? "没有笔记可导出" : "Nothing to export yet");
+      return;
+    }
+    notesApi.exportNotesToFile(notes);
+    toast.success(lang === "zh" ? `已导出 ${notes.length} 条笔记` : `Exported ${notes.length} notes`);
+  }, [notes, lang]);
+
+  const handleImport = useCallback(async (file: File) => {
+    setImporting(true);
+    try {
+      const count = await notesApi.importNotesFromFile(file);
+      toast.success(lang === "zh" ? `已导入 ${count} 条笔记` : `Imported ${count} notes`);
+      await refresh();
+    } catch (e: any) {
+      toast.error(e.message || (lang === "zh" ? "导入失败" : "Import failed"));
+    } finally {
+      setImporting(false);
+    }
+  }, [lang, refresh]);
+
   // Backend not configured → friendly message
   if (!USE_AUTH_BACKEND) {
     return (
@@ -118,21 +146,48 @@ export default function NotesView({ lang, geminiApiKey, onOpenSettings }: NotesV
             />
           </div>
         </div>
-        <div className="flex gap-1.5 px-3 sm:px-4 pb-2 overflow-x-auto no-scrollbar">
-          {CATEGORIES.map(cat => (
+        <div className="flex items-center gap-1.5 px-3 sm:px-4 pb-2">
+          <div className="flex gap-1.5 overflow-x-auto no-scrollbar flex-1 min-w-0">
+            {CATEGORIES.map(cat => (
+              <button
+                key={cat.id}
+                onClick={() => setCategory(cat.id)}
+                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium t-transition ${
+                  category === cat.id
+                    ? "bg-[var(--blue)] text-white"
+                    : "bg-[var(--bg-alt)] text-[var(--text-tertiary)] hover:bg-[var(--bg-active)]"
+                }`}
+              >
+                <span>{cat.emoji}</span>
+                <span>{(t as any)[cat.labelKey]}</span>
+              </button>
+            ))}
+          </div>
+          {/* Export / Import — compact icons, always visible */}
+          <div className="flex-shrink-0 flex items-center gap-0.5 border-l border-[var(--border-light)] pl-1.5 ml-0.5">
             <button
-              key={cat.id}
-              onClick={() => setCategory(cat.id)}
-              className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium t-transition ${
-                category === cat.id
-                  ? "bg-[var(--blue)] text-white"
-                  : "bg-[var(--bg-alt)] text-[var(--text-tertiary)] hover:bg-[var(--bg-active)]"
-              }`}
+              onClick={handleExport}
+              title={lang === "zh" ? "导出笔记备份" : "Export backup"}
+              className="size-8 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] active:bg-[var(--bg-alt)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition"
             >
-              <span>{cat.emoji}</span>
-              <span>{(t as any)[cat.labelKey]}</span>
+              <Download className="size-4" />
             </button>
-          ))}
+            <button
+              onClick={() => importInputRef.current?.click()}
+              disabled={importing}
+              title={lang === "zh" ? "从备份导入" : "Import backup"}
+              className="size-8 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] active:bg-[var(--bg-alt)] hover:bg-[var(--bg-alt)] rounded-[4px] t-transition disabled:opacity-50"
+            >
+              {importing ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+            </button>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept="application/json,.json"
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleImport(f); e.target.value = ""; }}
+              className="hidden"
+            />
+          </div>
         </div>
       </div>
 

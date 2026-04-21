@@ -87,3 +87,64 @@ export function searchNotes(notes: Note[], query: string): Note[] {
     return terms.every((t) => haystack.includes(t));
   });
 }
+
+/**
+ * Export all notes as a downloadable JSON file. Includes photos (base64)
+ * and OCR text so the backup is self-contained and can be re-imported
+ * into any compatible instance.
+ */
+export function exportNotesToFile(notes: Note[]): void {
+  const payload = {
+    version: 1,
+    exported_at: Date.now(),
+    count: notes.length,
+    notes,
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const date = new Date().toISOString().slice(0, 10);
+  a.download = `notes-backup-${date}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Parse a previously-exported JSON file and upload each note to the
+ * backend. Returns the number of notes successfully imported.
+ *
+ * NOTE: Each imported note gets a fresh ID server-side, so re-importing
+ * the same file creates duplicates rather than overwriting. Simple and
+ * predictable — users who want dedup should export → clear → import.
+ */
+export async function importNotesFromFile(file: File): Promise<number> {
+  const text = await file.text();
+  let parsed: any;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error('Invalid JSON file');
+  }
+  const notes: any[] = Array.isArray(parsed?.notes) ? parsed.notes : Array.isArray(parsed) ? parsed : [];
+  if (notes.length === 0) throw new Error('No notes found in file');
+
+  let imported = 0;
+  for (const n of notes) {
+    try {
+      await createNote({
+        title: n.title || '',
+        text: n.text || '',
+        category: n.category || 'other',
+        photos: Array.isArray(n.photos) ? n.photos : [],
+        photoTexts: Array.isArray(n.photoTexts) ? n.photoTexts : [],
+      });
+      imported += 1;
+    } catch (e) {
+      console.error('Failed to import note:', e);
+    }
+  }
+  return imported;
+}

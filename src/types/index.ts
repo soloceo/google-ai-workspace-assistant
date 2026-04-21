@@ -66,4 +66,5 @@ export interface Note {
   category: NoteCategory;
   photos: string[];      // base64 data URLs (JPEG)
   photoTexts: string[];  // parallel: OCR-extracted text per photo (for search)
+  owner?: string;         // Google email that owns this note
 }

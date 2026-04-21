@@ -387,11 +387,20 @@ async function handleRevoke(req: Request, env: Env): Promise<Response> {
 }
 
 // ─── Notes ──────────────────────────────────────────────────
-// Personal notebook, scoped to the browser session (not per-Google-account).
-// KV key format: note:${sid}:${noteId}
-// Notes are NOT encrypted — they live alongside refresh tokens in KV and
-// are only readable by the user who owns the session cookie. Photos are
-// stored inline as base64 JPEG after client-side resize.
+// Personal notebook — keyed by the user's connected Google account email,
+// NOT by browser session. This means:
+//   • Multiple users on separate browsers → fully isolated by email
+//   • Same user on multiple devices → same notes everywhere
+//   • User clears cookies → re-login with same Google account → notes back
+//
+// KV key format: note:owner:${googleEmail}:${noteId}
+// Legacy keys (note:${sid}:${noteId}) from before the re-key are migrated
+// to the new format on first list after the session's first Google login.
+//
+// Notes are NOT encrypted — they live alongside refresh tokens in KV.
+// Between users they're isolated by email (you can only read notes whose
+// owner email is connected to your session). Photos are stored inline as
+// base64 JPEG after client-side resize.
 
 const NOTE_CATEGORIES = new Set(['product', 'idea', 'task', 'other']);
 const MAX_NOTE_SIZE_BYTES = 20 * 1024 * 1024; // 20MB — KV value limit is 25MB
@@ -405,6 +414,7 @@ interface StoredNote {
   category: string; // product | idea | task | other
   photos: string[]; // base64 data URLs (JPEG after client-side resize)
   photoTexts: string[]; // parallel: OCR-extracted text per photo
+  owner?: string; // Google email that owns this note (not encrypted, used by client)
 }
 
 function newNoteId(): string {
@@ -426,31 +436,94 @@ function sanitizeNote(n: any, existing?: StoredNote): StoredNote {
   };
 }
 
+/** Return the Google emails currently connected to this browser session. */
+async function getSessionEmails(env: Env, sid: string): Promise<string[]> {
+  const { keys } = await env.TOKENS.list({ prefix: `sess:${sid}:` });
+  return keys
+    .map(k => k.name.substring(`sess:${sid}:`.length))
+    .filter(Boolean)
+    .sort();
+}
+
+/**
+ * Move old session-keyed notes to the new email-keyed namespace.
+ * Idempotent — runs on each listNotes call but is cheap when there's
+ * nothing to migrate (single KV list returns zero keys).
+ */
+async function migrateSessionNotes(env: Env, sid: string, ownerEmail: string): Promise<void> {
+  const { keys } = await env.TOKENS.list({ prefix: `note:${sid}:` });
+  if (keys.length === 0) return;
+  for (const k of keys) {
+    const value = await env.TOKENS.get(k.name);
+    const noteId = k.name.substring(`note:${sid}:`.length);
+    if (value) {
+      await env.TOKENS.put(`note:owner:${ownerEmail}:${noteId}`, value);
+    }
+    await env.TOKENS.delete(k.name);
+  }
+}
+
+/**
+ * Find the KV key for a note by scanning all connected emails' namespaces.
+ * Ensures callers can only hit notes owned by a Google account that's
+ * currently authenticated in their session.
+ */
+async function findNoteKey(env: Env, sid: string, noteId: string): Promise<{ key: string; owner: string } | null> {
+  const emails = await getSessionEmails(env, sid);
+  for (const email of emails) {
+    const key = `note:owner:${email}:${noteId}`;
+    const exists = await env.TOKENS.get(key);
+    if (exists) return { key, owner: email };
+  }
+  return null;
+}
+
 async function handleListNotes(req: Request, env: Env): Promise<Response> {
   const sid = getSessionId(req);
   if (!sid) return json(env, { notes: [] });
 
-  const { keys } = await env.TOKENS.list({ prefix: `note:${sid}:` });
-  const notes = await Promise.all(
-    keys.map(async (k) => {
-      const raw = await env.TOKENS.get(k.name);
-      if (!raw) return null;
-      try {
-        return JSON.parse(raw) as StoredNote;
-      } catch {
-        return null;
-      }
-    })
-  );
-  const valid = notes.filter((n): n is StoredNote => n !== null);
-  valid.sort((a, b) => b.updated_at - a.updated_at);
-  return json(env, { notes: valid });
+  const emails = await getSessionEmails(env, sid);
+  if (emails.length === 0) return json(env, { notes: [] });
+
+  // Migrate any legacy session-keyed notes to the primary email
+  // namespace on first authenticated list call.
+  await migrateSessionNotes(env, sid, emails[0]);
+
+  // Aggregate notes from every connected email's namespace so users
+  // with multiple Google accounts see all their notes together.
+  const allNotes: StoredNote[] = [];
+  for (const email of emails) {
+    const { keys } = await env.TOKENS.list({ prefix: `note:owner:${email}:` });
+    const batch = await Promise.all(
+      keys.map(async (k) => {
+        const raw = await env.TOKENS.get(k.name);
+        if (!raw) return null;
+        try {
+          const n = JSON.parse(raw) as StoredNote;
+          n.owner = email; // tell the client which email owns this note
+          return n;
+        } catch {
+          return null;
+        }
+      })
+    );
+    allNotes.push(...batch.filter((n): n is StoredNote => n !== null));
+  }
+  allNotes.sort((a, b) => b.updated_at - a.updated_at);
+  return json(env, { notes: allNotes });
 }
 
 async function handleCreateNote(req: Request, env: Env): Promise<Response> {
   const sid = getSessionId(req);
   if (!sid) return json(env, { error: 'No session' }, { status: 401 });
 
+  const emails = await getSessionEmails(env, sid);
+  if (emails.length === 0) return json(env, { error: 'Must log in with a Google account first' }, { status: 401 });
+
+  // New notes belong to the first connected email (alphabetically).
+  // Users with multiple accounts will see all their notes on list but
+  // writes go to a single, predictable namespace.
+  const owner = emails[0];
   const body = (await req.json().catch(() => ({}))) as Record<string, any>;
   const note = sanitizeNote(body);
 
@@ -459,15 +532,18 @@ async function handleCreateNote(req: Request, env: Env): Promise<Response> {
     return json(env, { error: 'Note too large (max 20MB incl. photos)' }, { status: 413 });
   }
 
-  await env.TOKENS.put(`note:${sid}:${note.id}`, serialized);
-  return json(env, { note });
+  await env.TOKENS.put(`note:owner:${owner}:${note.id}`, serialized);
+  return json(env, { note: { ...note, owner } });
 }
 
 async function handleUpdateNote(req: Request, env: Env, noteId: string): Promise<Response> {
   const sid = getSessionId(req);
   if (!sid) return json(env, { error: 'No session' }, { status: 401 });
 
-  const raw = await env.TOKENS.get(`note:${sid}:${noteId}`);
+  const found = await findNoteKey(env, sid, noteId);
+  if (!found) return json(env, { error: 'Not found' }, { status: 404 });
+
+  const raw = await env.TOKENS.get(found.key);
   if (!raw) return json(env, { error: 'Not found' }, { status: 404 });
   const existing = JSON.parse(raw) as StoredNote;
 
@@ -479,14 +555,16 @@ async function handleUpdateNote(req: Request, env: Env, noteId: string): Promise
     return json(env, { error: 'Note too large (max 20MB incl. photos)' }, { status: 413 });
   }
 
-  await env.TOKENS.put(`note:${sid}:${note.id}`, serialized);
-  return json(env, { note });
+  await env.TOKENS.put(found.key, serialized);
+  return json(env, { note: { ...note, owner: found.owner } });
 }
 
 async function handleDeleteNote(req: Request, env: Env, noteId: string): Promise<Response> {
   const sid = getSessionId(req);
   if (!sid) return json(env, { ok: true });
-  await env.TOKENS.delete(`note:${sid}:${noteId}`);
+
+  const found = await findNoteKey(env, sid, noteId);
+  if (found) await env.TOKENS.delete(found.key);
   return json(env, { ok: true });
 }
 
