@@ -402,7 +402,10 @@ async function handleRevoke(req: Request, env: Env): Promise<Response> {
 // owner email is connected to your session). Photos are stored inline as
 // base64 JPEG after client-side resize.
 
-const NOTE_CATEGORIES = new Set(['product', 'idea', 'task', 'other']);
+const NOTE_CATEGORIES = new Set(['product', 'idea', 'task', 'accounting', 'other']);
+const NOTE_TX_TYPES = new Set(['income', 'expense']);
+const NOTE_TAX_MODES = new Set(['exclusive', 'inclusive', 'exempt']);
+const NOTE_PAYMENTS = new Set(['cash', 'credit', 'bank', 'cheque', 'other']);
 const MAX_NOTE_SIZE_BYTES = 20 * 1024 * 1024; // 20MB — KV value limit is 25MB
 
 interface StoredNote {
@@ -411,9 +414,20 @@ interface StoredNote {
   updated_at: number;
   title: string;
   text: string;
-  category: string; // product | idea | task | other
+  category: string; // product | idea | task | accounting | other
   photos: string[]; // base64 data URLs (JPEG after client-side resize)
   photoTexts: string[]; // parallel: OCR-extracted text per photo
+
+  // Accounting fields — all optional, only populated when
+  // category === 'accounting'. Kept on every note type so we don't
+  // need a separate schema; undefined for non-accounting notes.
+  amount?: number;           // headline amount as entered
+  txType?: string;           // income | expense
+  taxMode?: string;          // exclusive | inclusive | exempt
+  taxRate?: number;          // percent, e.g. 13 for HST Ontario
+  payment?: string;          // cash | credit | bank | cheque | other
+  txDate?: string;           // YYYY-MM-DD — transaction date (may differ from note created_at)
+
   owner?: string; // Google email that owns this note (not encrypted, used by client)
 }
 
@@ -424,15 +438,38 @@ function newNoteId(): string {
 
 function sanitizeNote(n: any, existing?: StoredNote): StoredNote {
   const now = Date.now();
+  const cleanNum = (v: any): number | undefined => {
+    if (v === null || v === undefined || v === '') return undefined;
+    const f = Number(v);
+    return Number.isFinite(f) ? f : undefined;
+  };
+  const cleanEnum = (v: any, allowed: Set<string>): string | undefined =>
+    typeof v === 'string' && allowed.has(v) ? v : undefined;
+  const cleanDate = (v: any): string | undefined =>
+    typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined;
+
+  const category = NOTE_CATEGORIES.has(n?.category) ? n.category : existing?.category || 'other';
+  // Accounting fields are only retained when category is 'accounting'.
+  // Switching away clears them — this prevents orphan amounts from
+  // polluting ledger summaries if a user re-categorizes a note.
+  const isAccounting = category === 'accounting';
+
   return {
     id: existing?.id || newNoteId(),
     created_at: existing?.created_at || now,
     updated_at: now,
     title: typeof n?.title === 'string' ? n.title.slice(0, 500) : existing?.title || '',
     text: typeof n?.text === 'string' ? n.text.slice(0, 100_000) : existing?.text || '',
-    category: NOTE_CATEGORIES.has(n?.category) ? n.category : existing?.category || 'other',
+    category,
     photos: Array.isArray(n?.photos) ? n.photos.filter((p: any) => typeof p === 'string').slice(0, 20) : existing?.photos || [],
     photoTexts: Array.isArray(n?.photoTexts) ? n.photoTexts.filter((t: any) => typeof t === 'string').slice(0, 20) : existing?.photoTexts || [],
+    // Accounting fields — cleared if category isn't 'accounting'.
+    amount:  isAccounting ? cleanNum(n?.amount ?? existing?.amount) : undefined,
+    txType:  isAccounting ? cleanEnum(n?.txType ?? existing?.txType, NOTE_TX_TYPES) : undefined,
+    taxMode: isAccounting ? cleanEnum(n?.taxMode ?? existing?.taxMode, NOTE_TAX_MODES) : undefined,
+    taxRate: isAccounting ? cleanNum(n?.taxRate ?? existing?.taxRate) : undefined,
+    payment: isAccounting ? cleanEnum(n?.payment ?? existing?.payment, NOTE_PAYMENTS) : undefined,
+    txDate:  isAccounting ? cleanDate(n?.txDate ?? existing?.txDate) : undefined,
   };
 }
 

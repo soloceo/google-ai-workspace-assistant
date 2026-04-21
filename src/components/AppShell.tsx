@@ -9,6 +9,7 @@ import * as tasksService from "../services/tasks";
 import * as gemini from "../services/gemini";
 import * as notesApi from "../services/notes";
 import type { StoredAccount, AccountSummary, UserProfile, ChatMessage } from "../types";
+import { computeNoteTaxBreakdown } from "../types";
 import type { TaskList, Task } from "../services/tasks";
 import DashboardView from "./dashboard/DashboardView";
 import MailView from "./mail/MailView";
@@ -1097,16 +1098,42 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
             const queryTerms = (args.query || "").toLowerCase().split(/\s+/).filter(Boolean);
             const summaries = top.map(n => {
               const photoNote = n.photos.length > 0 ? ` [${n.photos.length} photo${n.photos.length > 1 ? "s" : ""}]` : "";
-              // Pick the photo text that actually contains a query term,
-              // so matches found "in photo #5" don't get truncated away.
               const nonEmpty = n.photoTexts.filter(Boolean);
               const withHit = nonEmpty.find(t => queryTerms.some(q => t.toLowerCase().includes(q)));
               const chosen = withHit || nonEmpty[0] || "";
               const ocrNote = chosen ? ` (photo text: ${chosen.slice(0, 300)})` : "";
               const body = n.text.slice(0, 300);
-              return `[${n.category}] ${n.title || "(untitled)"}${photoNote}\n${body}${ocrNote}`;
+              // Accounting entries: surface amount/type/date so the AI can sum, compare, etc.
+              let accountingLine = "";
+              if (n.category === "accounting" && typeof n.amount === "number") {
+                const sign = n.txType === "income" ? "+" : "−";
+                const parts = [
+                  `${sign}$${n.amount.toFixed(2)}`,
+                  n.txType || "",
+                  n.taxMode && n.taxMode !== "exempt" ? `${n.taxRate ?? 0}% ${n.taxMode}` : "no tax",
+                  n.payment || "",
+                  n.txDate || "",
+                ].filter(Boolean);
+                accountingLine = `\n  💰 ${parts.join(" · ")}`;
+              }
+              return `[${n.category}] ${n.title || "(untitled)"}${photoNote}${accountingLine}\n${body}${ocrNote}`;
             }).join("\n---\n");
-            return { success: true, message: `Found ${matches.length} note${matches.length > 1 ? "s" : ""}:\n${summaries}` };
+            // For accounting queries, also append an overall total so the
+            // AI doesn't have to sum a long list manually.
+            let totalsLine = "";
+            if (args.category === "accounting" || matches.every(m => m.category === "accounting")) {
+              const accMatches = matches.filter(m => m.category === "accounting" && typeof m.amount === "number");
+              if (accMatches.length > 0) {
+                let inc = 0, exp = 0;
+                for (const m of accMatches) {
+                  const { total } = computeNoteTaxBreakdown(m);
+                  if (m.txType === "income") inc += total;
+                  else exp += total;
+                }
+                totalsLine = `\n\nTotals across ${accMatches.length} entries: +$${inc.toFixed(2)} income, −$${exp.toFixed(2)} expense, net $${(inc - exp).toFixed(2)}`;
+              }
+            }
+            return { success: true, message: `Found ${matches.length} note${matches.length > 1 ? "s" : ""}:\n${summaries}${totalsLine}` };
           } catch (e: any) {
             return { success: false, message: e.message || "Failed to search notes" };
           }

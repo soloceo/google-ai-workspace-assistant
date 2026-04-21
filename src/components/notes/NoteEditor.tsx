@@ -1,21 +1,39 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { X, Camera, Image as ImageIcon, Trash2, Loader2, Check } from "lucide-react";
 import { toast } from "sonner";
 import { translations, type Language } from "../../translations";
-import type { Note, NoteCategory } from "../../types";
+import type { Note, NoteCategory, NoteTxType, NoteTaxMode, NotePayment } from "../../types";
+import { computeNoteTaxBreakdown } from "../../types";
 import { resizeImage, extractTextFromPhoto } from "../../services/photo";
 
 const CATEGORIES: { id: NoteCategory; emoji: string; labelKey: string }[] = [
-  { id: "product", emoji: "🛍", labelKey: "noteCatProduct" },
-  { id: "idea",    emoji: "💡", labelKey: "noteCatIdea" },
-  { id: "task",    emoji: "✅", labelKey: "noteCatTask" },
-  { id: "other",   emoji: "📝", labelKey: "noteCatOther" },
+  { id: "product",    emoji: "🛍", labelKey: "noteCatProduct" },
+  { id: "idea",       emoji: "💡", labelKey: "noteCatIdea" },
+  { id: "task",       emoji: "✅", labelKey: "noteCatTask" },
+  { id: "accounting", emoji: "💰", labelKey: "noteCatAccounting" },
+  { id: "other",      emoji: "📝", labelKey: "noteCatOther" },
+];
+
+const PAYMENTS: { id: NotePayment; labelKey: string }[] = [
+  { id: "cash",   labelKey: "notePayCash" },
+  { id: "credit", labelKey: "notePayCredit" },
+  { id: "bank",   labelKey: "notePayBank" },
+  { id: "cheque", labelKey: "notePayCheque" },
+  { id: "other",  labelKey: "notePayOther" },
+];
+
+const TAX_MODES: { id: NoteTaxMode; labelKey: string }[] = [
+  { id: "exclusive", labelKey: "noteTaxExclusive" },
+  { id: "inclusive", labelKey: "noteTaxInclusive" },
+  { id: "exempt",    labelKey: "noteTaxExempt" },
 ];
 
 interface NoteEditorProps {
   lang: Language;
   note: Note | null;              // null = creating new
   geminiReady: boolean;           // whether OCR is available
+  /** Default tax rate to prefill when user first picks 'accounting'. */
+  defaultTaxRate?: number;
   onSave: (data: {
     id?: string;
     title: string;
@@ -23,12 +41,19 @@ interface NoteEditorProps {
     category: NoteCategory;
     photos: string[];
     photoTexts: string[];
+    // Accounting fields (only sent when category === 'accounting')
+    amount?: number;
+    txType?: NoteTxType;
+    taxMode?: NoteTaxMode;
+    taxRate?: number;
+    payment?: NotePayment;
+    txDate?: string;
   }) => Promise<void>;
   onDelete?: () => Promise<void>;
   onClose: () => void;
 }
 
-export default function NoteEditor({ lang, note, geminiReady, onSave, onDelete, onClose }: NoteEditorProps) {
+export default function NoteEditor({ lang, note, geminiReady, defaultTaxRate = 13, onSave, onDelete, onClose }: NoteEditorProps) {
   const t = translations[lang];
   const [title, setTitle] = useState(note?.title || "");
   const [text, setText] = useState(note?.text || "");
@@ -38,11 +63,39 @@ export default function NoteEditor({ lang, note, geminiReady, onSave, onDelete, 
   const [saving, setSaving] = useState(false);
   const [ocrIndex, setOcrIndex] = useState<number | null>(null);
 
+  // Accounting-only state. Preserved across category toggles so the user
+  // doesn't lose fields if they accidentally switch away and back.
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const [amountStr, setAmountStr] = useState(note?.amount !== undefined ? String(note.amount) : "");
+  const [txType, setTxType] = useState<NoteTxType>(note?.txType || "expense");
+  const [taxMode, setTaxMode] = useState<NoteTaxMode>(note?.taxMode || "exclusive");
+  const [taxRateStr, setTaxRateStr] = useState(
+    note?.taxRate !== undefined ? String(note.taxRate) : String(defaultTaxRate)
+  );
+  const [payment, setPayment] = useState<NotePayment>(note?.payment || "credit");
+  const [txDate, setTxDate] = useState(note?.txDate || todayISO);
+
+  const isAccounting = category === "accounting";
+  const amountNum = Number(amountStr) || 0;
+  const rateNum = Number(taxRateStr) || 0;
+  const breakdown = useMemo(
+    () => computeNoteTaxBreakdown({ amount: amountNum, taxMode, taxRate: rateNum }),
+    [amountNum, taxMode, rateNum]
+  );
+  const fmtMoney = (n: number) =>
+    new Intl.NumberFormat(lang === "zh" ? "zh-CN" : "en-CA", {
+      style: "currency", currency: "CAD", minimumFractionDigits: 2,
+    }).format(n);
+
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
   const handleSave = useCallback(async () => {
-    if (!title.trim() && !text.trim() && photos.length === 0) return;
+    // Accounting entries are valid with just an amount (no title/text needed);
+    // regular notes need title/text/photo.
+    const hasAccountingContent = isAccounting && amountStr.trim() !== "";
+    if (!hasAccountingContent && !title.trim() && !text.trim() && photos.length === 0) return;
+
     setSaving(true);
     try {
       await onSave({
@@ -52,11 +105,22 @@ export default function NoteEditor({ lang, note, geminiReady, onSave, onDelete, 
         category,
         photos,
         photoTexts,
+        // Include accounting fields only when category is 'accounting'.
+        // When the user moves a note OUT of accounting, we send undefined
+        // so the server clears the fields — avoids orphan amounts showing
+        // in summaries. The Worker's sanitizeNote merges with existing, so
+        // we must explicitly pass undefined (not omit) to clear.
+        amount: isAccounting ? (amountStr.trim() === "" ? undefined : amountNum) : undefined,
+        txType: isAccounting ? txType : undefined,
+        taxMode: isAccounting ? taxMode : undefined,
+        taxRate: isAccounting ? rateNum : undefined,
+        payment: isAccounting ? payment : undefined,
+        txDate: isAccounting ? txDate : undefined,
       });
     } finally {
       setSaving(false);
     }
-  }, [title, text, category, photos, photoTexts, note, onSave]);
+  }, [title, text, category, photos, photoTexts, note, onSave, isAccounting, amountStr, amountNum, txType, taxMode, rateNum, payment, txDate]);
 
   // Cmd/Ctrl+Enter to save, Escape to close
   useEffect(() => {
@@ -180,12 +244,117 @@ export default function NoteEditor({ lang, note, geminiReady, onSave, onDelete, 
             maxLength={500}
           />
 
+          {/* Accounting panel — only when category === 'accounting' */}
+          {isAccounting && (
+            <div className="space-y-2.5 p-3 bg-[var(--bg-alt)] rounded-[4px]">
+              {/* Income / Expense toggle */}
+              <div className="flex gap-1 p-1 bg-[var(--bg-hover)] rounded-[4px]">
+                {(["expense", "income"] as NoteTxType[]).map(v => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setTxType(v)}
+                    className={`flex-1 h-8 text-xs font-medium rounded-[4px] t-transition ${
+                      txType === v
+                        ? v === "income"
+                          ? "bg-emerald-500 text-white"
+                          : "bg-[var(--bg)] text-[var(--text-primary)] shadow-sm"
+                        : "text-[var(--text-tertiary)]"
+                    }`}
+                  >
+                    {v === "income" ? t.noteTxTypeIncome : t.noteTxTypeExpense}
+                  </button>
+                ))}
+              </div>
+
+              {/* Amount + date */}
+              <div className="grid grid-cols-[1fr_auto] gap-2">
+                <div>
+                  <label className="text-[11px] text-[var(--text-tertiary)] mb-0.5 block">{t.noteAmount}</label>
+                  <input
+                    value={amountStr}
+                    onChange={e => setAmountStr(e.target.value)}
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    className="w-full h-11 px-3 text-lg font-semibold tabular-nums bg-[var(--bg)] border-none rounded-[4px] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--blue)]"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-[var(--text-tertiary)] mb-0.5 block">{t.noteTxDate}</label>
+                  <input
+                    type="date"
+                    value={txDate}
+                    onChange={e => setTxDate(e.target.value)}
+                    className="h-11 px-2 text-sm bg-[var(--bg)] border-none rounded-[4px] text-[var(--text-body)] focus:outline-none focus:ring-2 focus:ring-[var(--blue)]"
+                  />
+                </div>
+              </div>
+
+              {/* Tax mode + rate */}
+              <div className="grid grid-cols-[1fr_auto] gap-2">
+                <div>
+                  <label className="text-[11px] text-[var(--text-tertiary)] mb-0.5 block">{t.noteTaxMode}</label>
+                  <select
+                    value={taxMode}
+                    onChange={e => setTaxMode(e.target.value as NoteTaxMode)}
+                    className="w-full h-10 px-3 text-sm bg-[var(--bg)] border-none rounded-[4px] text-[var(--text-body)] focus:outline-none focus:ring-2 focus:ring-[var(--blue)]"
+                  >
+                    {TAX_MODES.map(m => (
+                      <option key={m.id} value={m.id}>{(t as any)[m.labelKey]}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] text-[var(--text-tertiary)] mb-0.5 block">{t.noteTaxRate}</label>
+                  <input
+                    value={taxMode === "exempt" ? "—" : taxRateStr}
+                    disabled={taxMode === "exempt"}
+                    onChange={e => setTaxRateStr(e.target.value)}
+                    inputMode="decimal"
+                    placeholder="13"
+                    className="w-20 h-10 px-2 text-sm tabular-nums bg-[var(--bg)] border-none rounded-[4px] text-[var(--text-body)] focus:outline-none focus:ring-2 focus:ring-[var(--blue)] disabled:opacity-50"
+                  />
+                </div>
+              </div>
+
+              {/* Payment */}
+              <div>
+                <label className="text-[11px] text-[var(--text-tertiary)] mb-0.5 block">{t.notePayment}</label>
+                <select
+                  value={payment}
+                  onChange={e => setPayment(e.target.value as NotePayment)}
+                  className="w-full h-10 px-3 text-sm bg-[var(--bg)] border-none rounded-[4px] text-[var(--text-body)] focus:outline-none focus:ring-2 focus:ring-[var(--blue)]"
+                >
+                  {PAYMENTS.map(p => (
+                    <option key={p.id} value={p.id}>{(t as any)[p.labelKey]}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Breakdown */}
+              <div className="px-3 py-2 bg-[var(--bg)] rounded-[4px] space-y-0.5">
+                <div className="flex justify-between text-[11px] text-[var(--text-tertiary)]">
+                  <span>{t.noteSubtotal}</span>
+                  <span className="tabular-nums">{fmtMoney(breakdown.subtotal)}</span>
+                </div>
+                <div className="flex justify-between text-[11px] text-[var(--text-tertiary)]">
+                  <span>{t.noteTax} ({taxMode === "exempt" ? "—" : `${rateNum}%`})</span>
+                  <span className="tabular-nums">{fmtMoney(breakdown.tax)}</span>
+                </div>
+                <div className="flex justify-between text-[13px] font-semibold text-[var(--text-primary)] pt-0.5 border-t border-[var(--border-light)]">
+                  <span>{t.noteTotal}</span>
+                  <span className="tabular-nums">{fmtMoney(breakdown.total)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Content */}
           <textarea
             value={text}
             onChange={e => setText(e.target.value)}
             placeholder={t.noteContent}
-            rows={6}
+            rows={isAccounting ? 3 : 6}
             className="w-full px-3 py-2.5 text-sm bg-[var(--bg-alt)] border-none rounded-[4px] text-[var(--text-body)] placeholder:text-[var(--text-placeholder)] focus:outline-none focus:ring-2 focus:ring-[var(--blue)] resize-y"
           />
 
@@ -259,7 +428,12 @@ export default function NoteEditor({ lang, note, geminiReady, onSave, onDelete, 
         <div className="flex gap-2 px-4 sm:px-5 py-3 sm:py-4 border-t border-[var(--border-light)] safe-area-pb-modal">
           <button
             onClick={handleSave}
-            disabled={saving || ocrIndex !== null || (!title.trim() && !text.trim() && photos.length === 0)}
+            disabled={
+              saving || ocrIndex !== null ||
+              (isAccounting
+                ? amountStr.trim() === "" || !(Number(amountStr) > 0)
+                : !title.trim() && !text.trim() && photos.length === 0)
+            }
             className="flex-1 h-11 sm:h-10 text-sm font-medium text-white bg-[var(--blue)] hover:bg-[var(--blue-hover)] rounded-[4px] t-btn-transition disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {(saving || ocrIndex !== null) ? <Loader2 className="size-4 animate-spin" /> : null}

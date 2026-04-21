@@ -1,10 +1,12 @@
 import { translations, type Language } from "../../translations";
 import type { Note } from "../../types";
+import { computeNoteTaxBreakdown } from "../../types";
 
 const CATEGORY_EMOJI: Record<string, string> = {
   product: "🛍",
   idea: "💡",
   task: "✅",
+  accounting: "💰",
   other: "📝",
 };
 
@@ -39,6 +41,12 @@ export default function NoteCard({ note, lang, onClick }: NoteCardProps) {
   const preview = note.text.slice(0, 160).trim();
   const firstPhoto = note.photos?.[0];
   const extraPhotos = Math.max(0, (note.photos?.length || 0) - 1);
+  const isAccounting = note.category === "accounting" && typeof note.amount === "number";
+  const breakdown = isAccounting ? computeNoteTaxBreakdown(note) : null;
+  const fmtMoney = (n: number) =>
+    new Intl.NumberFormat(lang === "zh" ? "zh-CN" : "en-CA", {
+      style: "currency", currency: "CAD", maximumFractionDigits: 2,
+    }).format(n);
 
   return (
     <button
@@ -64,13 +72,32 @@ export default function NoteCard({ note, lang, onClick }: NoteCardProps) {
             </h3>
           )}
         </div>
+
+        {/* Accounting amount (prominent, colored) */}
+        {isAccounting && breakdown && (
+          <div className="flex items-baseline justify-between">
+            <span className={`text-lg font-bold tabular-nums ${
+              note.txType === "income" ? "text-emerald-600" : "text-red-500"
+            }`}>
+              {note.txType === "income" ? "+" : "−"}{fmtMoney(breakdown.total)}
+            </span>
+            {note.taxMode !== "exempt" && breakdown.tax > 0 && (
+              <span className="text-[10px] text-[var(--text-quaternary)] tabular-nums">
+                incl. {fmtMoney(breakdown.tax)} {t.noteTax.toLowerCase()}
+              </span>
+            )}
+          </div>
+        )}
+
         {preview && (
           <p className="text-[13px] text-[var(--text-tertiary)] line-clamp-3 leading-snug whitespace-pre-wrap">
             {preview}
           </p>
         )}
         <p className="text-[11px] text-[var(--text-quaternary)]">
-          {t.noteUpdatedAt.replace("{time}", formatRelative(note.updated_at, lang))}
+          {isAccounting && note.txDate
+            ? note.txDate
+            : t.noteUpdatedAt.replace("{time}", formatRelative(note.updated_at, lang))}
         </p>
       </div>
     </button>

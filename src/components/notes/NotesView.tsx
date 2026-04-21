@@ -3,17 +3,19 @@ import { Plus, Search, Loader2, NotebookPen, KeyRound, Download, Upload, Databas
 import { toast } from "sonner";
 import { translations, type Language } from "../../translations";
 import type { Note, NoteCategory } from "../../types";
+import { computeNoteTaxBreakdown } from "../../types";
 import * as notesApi from "../../services/notes";
 import { USE_AUTH_BACKEND } from "../../config";
 import NoteEditor from "./NoteEditor";
 import NoteCard from "./NoteCard";
 
 const CATEGORIES: { id: NoteCategory | "all"; emoji: string; labelKey: string }[] = [
-  { id: "all",     emoji: "📚", labelKey: "notes" },
-  { id: "product", emoji: "🛍", labelKey: "noteCatProduct" },
-  { id: "idea",    emoji: "💡", labelKey: "noteCatIdea" },
-  { id: "task",    emoji: "✅", labelKey: "noteCatTask" },
-  { id: "other",   emoji: "📝", labelKey: "noteCatOther" },
+  { id: "all",        emoji: "📚", labelKey: "notes" },
+  { id: "product",    emoji: "🛍", labelKey: "noteCatProduct" },
+  { id: "idea",       emoji: "💡", labelKey: "noteCatIdea" },
+  { id: "task",       emoji: "✅", labelKey: "noteCatTask" },
+  { id: "accounting", emoji: "💰", labelKey: "noteCatAccounting" },
+  { id: "other",      emoji: "📝", labelKey: "noteCatOther" },
 ];
 
 interface NotesViewProps {
@@ -61,6 +63,24 @@ export default function NotesView({ lang, geminiApiKey, onOpenSettings }: NotesV
     return list;
   }, [notes, category, query]);
 
+  // Accounting summary — computed from the filtered list, restricted to
+  // this month. Only shown when the user is on the accounting category.
+  const accountingSummary = useMemo(() => {
+    if (category !== "accounting") return null;
+    const now = new Date();
+    const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    let income = 0, expense = 0;
+    for (const n of filtered) {
+      if (n.category !== "accounting" || typeof n.amount !== "number") continue;
+      const dateForPeriod = n.txDate || new Date(n.updated_at).toISOString().slice(0, 10);
+      if (!dateForPeriod.startsWith(ym)) continue;
+      const { total } = computeNoteTaxBreakdown(n);
+      if (n.txType === "income") income += total;
+      else expense += total;
+    }
+    return { income, expense, net: income - expense };
+  }, [category, filtered]);
+
   const handleSave = useCallback(async (data: {
     id?: string;
     title: string;
@@ -68,6 +88,12 @@ export default function NotesView({ lang, geminiApiKey, onOpenSettings }: NotesV
     category: NoteCategory;
     photos: string[];
     photoTexts: string[];
+    amount?: number;
+    txType?: Note["txType"];
+    taxMode?: Note["taxMode"];
+    taxRate?: number;
+    payment?: Note["payment"];
+    txDate?: string;
   }) => {
     try {
       if (data.id) {
@@ -279,6 +305,31 @@ export default function NotesView({ lang, geminiApiKey, onOpenSettings }: NotesV
           </div>
         </div>
       </div>
+
+      {/* Accounting summary — only when filtered to 'accounting' */}
+      {accountingSummary && (
+        <div className="flex-shrink-0 px-3 sm:px-4 pt-3 pb-2 border-b border-[var(--border-light)]">
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { key: "income",  label: t.noteSummaryIncome,  value: accountingSummary.income,  bg: "bg-emerald-500/10",     text: "text-emerald-700 dark:text-emerald-400" },
+              { key: "expense", label: t.noteSummaryExpense, value: accountingSummary.expense, bg: "bg-red-500/10",         text: "text-red-700 dark:text-red-400" },
+              { key: "net",     label: t.noteSummaryNet,     value: accountingSummary.net,     bg: accountingSummary.net >= 0 ? "bg-[var(--blue-light)]" : "bg-amber-500/10", text: accountingSummary.net >= 0 ? "text-[var(--blue)]" : "text-amber-700 dark:text-amber-400" },
+            ].map(card => (
+              <div key={card.key} className={`p-2.5 rounded-[4px] ${card.bg}`}>
+                <div className={`text-[10px] uppercase tracking-wide mb-0.5 ${card.text}`}>
+                  {card.label}
+                </div>
+                <p className="text-sm font-semibold text-[var(--text-primary)] tabular-nums truncate">
+                  {new Intl.NumberFormat(lang === "zh" ? "zh-CN" : "en-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 }).format(card.value)}
+                </p>
+              </div>
+            ))}
+          </div>
+          <p className="text-[10px] text-[var(--text-quaternary)] text-center mt-1.5">
+            {t.noteSummaryPeriod}
+          </p>
+        </div>
+      )}
 
       {/* List */}
       <div className="flex-1 overflow-y-auto">

@@ -55,7 +55,10 @@ export interface StoredAccount {
   color: string;
 }
 
-export type NoteCategory = 'product' | 'idea' | 'task' | 'other';
+export type NoteCategory = 'product' | 'idea' | 'task' | 'accounting' | 'other';
+export type NoteTxType = 'income' | 'expense';
+export type NoteTaxMode = 'exclusive' | 'inclusive' | 'exempt';
+export type NotePayment = 'cash' | 'credit' | 'bank' | 'cheque' | 'other';
 
 export interface Note {
   id: string;
@@ -66,5 +69,29 @@ export interface Note {
   category: NoteCategory;
   photos: string[];      // base64 data URLs (JPEG)
   photoTexts: string[];  // parallel: OCR-extracted text per photo (for search)
+
+  // Accounting fields — optional, only populated when category === 'accounting'.
+  amount?: number;
+  txType?: NoteTxType;
+  taxMode?: NoteTaxMode;
+  taxRate?: number;      // percent
+  payment?: NotePayment;
+  txDate?: string;       // YYYY-MM-DD
+
   owner?: string;         // Google email that owns this note
+}
+
+/** Derive subtotal / tax / total from an accounting note's fields. */
+export function computeNoteTaxBreakdown(n: { amount?: number; taxMode?: NoteTaxMode; taxRate?: number }) {
+  const amount = n.amount ?? 0;
+  const rate = Math.max(0, n.taxRate ?? 0) / 100;
+  const mode = n.taxMode ?? 'exclusive';
+  if (mode === 'exempt') return { subtotal: amount, tax: 0, total: amount };
+  if (mode === 'inclusive') {
+    const subtotal = rate > 0 ? amount / (1 + rate) : amount;
+    return { subtotal, tax: amount - subtotal, total: amount };
+  }
+  // exclusive
+  const tax = amount * rate;
+  return { subtotal: amount, tax, total: amount + tax };
 }
