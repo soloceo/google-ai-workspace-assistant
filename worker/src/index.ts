@@ -686,6 +686,173 @@ async function handleMigrateNotes(req: Request, env: Env): Promise<Response> {
   return json(env, { ok: true, moved, target });
 }
 
+// ─── Deals (real estate transaction tracker) ─────────────────
+// KV key: deal:owner:${email}:${dealId}
+// Same ownership model as notes — scoped to the Google email, visible
+// to any session that's authenticated with that email.
+
+const DEAL_TYPES = new Set(['sell', 'buy', 'rent', 'other']);
+const DEAL_STATUSES = new Set(['active', 'archived']);
+const DEAL_STAGE_COUNTS: Record<string, number> = {
+  sell: 10, // 签委托 → 拍照估价 → 挂牌 → Showing → 收Offer → 谈判 → 接受 → 过户 → 成交 → 收佣
+  buy: 8,   // 需求 → 预审贷款 → 看房 → 下Offer → 谈判 → 接受 → 过户 → 成交
+  rent: 5,  // 挂牌 → 看房 → 签约 → 收押金 → 搬入
+  other: 3, // 开始 → 进行中 → 完成
+};
+const MAX_DEAL_SIZE_BYTES = 256 * 1024; // 256KB — deals have no photos, tiny payload
+
+interface StoredDeal {
+  id: string;
+  created_at: number;
+  updated_at: number;
+  type: string;               // sell | buy | rent | other
+  status: string;             // active | archived
+  archivedReason?: string;
+  stageIndex: number;         // 0-based into DEAL_STAGE_COUNTS[type]
+  address: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  listingPrice?: number;
+  offerPrice?: number;
+  finalPrice?: number;
+  commission?: number;
+  targetCloseDate?: string;   // YYYY-MM-DD
+  notes?: string;
+  tags: string[];
+  owner?: string;             // set by server on read
+}
+
+function newDealId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(12));
+  return b64encode(bytes).replace(/[+/=]/g, (c) => ({ '+': '-', '/': '_', '=': '' })[c]!);
+}
+
+function sanitizeDeal(n: any, existing?: StoredDeal): StoredDeal {
+  const now = Date.now();
+  const type = DEAL_TYPES.has(n?.type) ? n.type : existing?.type || 'sell';
+  const maxStage = DEAL_STAGE_COUNTS[type] - 1;
+  const rawStage = typeof n?.stageIndex === 'number' ? n.stageIndex : existing?.stageIndex ?? 0;
+  const stageIndex = Math.max(0, Math.min(maxStage, Math.floor(rawStage)));
+  const num = (v: any): number | undefined => {
+    if (v === null || v === undefined || v === '') return undefined;
+    const f = Number(v);
+    return Number.isFinite(f) ? f : undefined;
+  };
+  const str = (v: any, max: number): string | undefined => {
+    if (typeof v !== 'string') return undefined;
+    const t = v.slice(0, max);
+    return t.length > 0 ? t : undefined;
+  };
+  return {
+    id: existing?.id || newDealId(),
+    created_at: existing?.created_at || now,
+    updated_at: now,
+    type,
+    status: DEAL_STATUSES.has(n?.status) ? n.status : existing?.status || 'active',
+    archivedReason: str(n?.archivedReason ?? existing?.archivedReason, 500),
+    stageIndex,
+    address: (typeof n?.address === 'string' ? n.address : existing?.address || '').slice(0, 500),
+    contactName: str(n?.contactName ?? existing?.contactName, 200),
+    contactEmail: str(n?.contactEmail ?? existing?.contactEmail, 200),
+    contactPhone: str(n?.contactPhone ?? existing?.contactPhone, 60),
+    listingPrice: num(n?.listingPrice ?? existing?.listingPrice),
+    offerPrice: num(n?.offerPrice ?? existing?.offerPrice),
+    finalPrice: num(n?.finalPrice ?? existing?.finalPrice),
+    commission: num(n?.commission ?? existing?.commission),
+    targetCloseDate: str(n?.targetCloseDate ?? existing?.targetCloseDate, 10),
+    notes: typeof n?.notes === 'string' ? n.notes.slice(0, 10_000) : existing?.notes,
+    tags: Array.isArray(n?.tags) ? n.tags.filter((t: any) => typeof t === 'string').slice(0, 20) : existing?.tags || [],
+  };
+}
+
+async function findDealKey(env: Env, sid: string, dealId: string): Promise<{ key: string; owner: string } | null> {
+  const emails = await getSessionEmails(env, sid);
+  if (emails.length === 0) return null;
+  const primary = await getPrimaryOwnerForSession(env, sid);
+  const order = primary && emails.includes(primary)
+    ? [primary, ...emails.filter((e) => e !== primary)]
+    : emails;
+  for (const email of order) {
+    const key = `deal:owner:${email}:${dealId}`;
+    if (await env.TOKENS.get(key)) return { key, owner: email };
+  }
+  return null;
+}
+
+async function handleListDeals(req: Request, env: Env): Promise<Response> {
+  const sid = getSessionId(req);
+  if (!sid) return json(env, { deals: [] });
+
+  const emails = await getSessionEmails(env, sid);
+  if (emails.length === 0) return json(env, { deals: [] });
+
+  const all: StoredDeal[] = [];
+  for (const email of emails) {
+    const { keys } = await env.TOKENS.list({ prefix: `deal:owner:${email}:` });
+    const batch = await Promise.all(
+      keys.map(async (k) => {
+        const raw = await env.TOKENS.get(k.name);
+        if (!raw) return null;
+        try {
+          const d = JSON.parse(raw) as StoredDeal;
+          d.owner = email;
+          return d;
+        } catch {
+          return null;
+        }
+      })
+    );
+    all.push(...batch.filter((d): d is StoredDeal => d !== null));
+  }
+  all.sort((a, b) => b.updated_at - a.updated_at);
+  return json(env, { deals: all });
+}
+
+async function handleCreateDeal(req: Request, env: Env): Promise<Response> {
+  const sid = getSessionId(req);
+  if (!sid) return json(env, { error: 'No session' }, { status: 401 });
+  const owner = await getPrimaryOwnerForSession(env, sid);
+  if (!owner) return json(env, { error: 'Must log in with a Google account first' }, { status: 401 });
+
+  const body = (await req.json().catch(() => ({}))) as Record<string, any>;
+  const deal = sanitizeDeal(body);
+  const serialized = JSON.stringify(deal);
+  if (new TextEncoder().encode(serialized).length > MAX_DEAL_SIZE_BYTES) {
+    return json(env, { error: 'Deal too large' }, { status: 413 });
+  }
+  await env.TOKENS.put(`deal:owner:${owner}:${deal.id}`, serialized);
+  return json(env, { deal: { ...deal, owner } });
+}
+
+async function handleUpdateDeal(req: Request, env: Env, dealId: string): Promise<Response> {
+  const sid = getSessionId(req);
+  if (!sid) return json(env, { error: 'No session' }, { status: 401 });
+  const found = await findDealKey(env, sid, dealId);
+  if (!found) return json(env, { error: 'Not found' }, { status: 404 });
+
+  const raw = await env.TOKENS.get(found.key);
+  if (!raw) return json(env, { error: 'Not found' }, { status: 404 });
+  const existing = JSON.parse(raw) as StoredDeal;
+
+  const body = (await req.json().catch(() => ({}))) as Record<string, any>;
+  const deal = sanitizeDeal({ ...existing, ...body }, existing);
+  const serialized = JSON.stringify(deal);
+  if (new TextEncoder().encode(serialized).length > MAX_DEAL_SIZE_BYTES) {
+    return json(env, { error: 'Deal too large' }, { status: 413 });
+  }
+  await env.TOKENS.put(found.key, serialized);
+  return json(env, { deal: { ...deal, owner: found.owner } });
+}
+
+async function handleDeleteDeal(req: Request, env: Env, dealId: string): Promise<Response> {
+  const sid = getSessionId(req);
+  if (!sid) return json(env, { ok: true });
+  const found = await findDealKey(env, sid, dealId);
+  if (found) await env.TOKENS.delete(found.key);
+  return json(env, { ok: true });
+}
+
 // ─── Router ─────────────────────────────────────────────────
 
 export default {
@@ -711,6 +878,13 @@ export default {
       const noteMatch = url.pathname.match(/^\/notes\/([A-Za-z0-9_-]+)$/);
       if (noteMatch && request.method === 'PATCH') return handleUpdateNote(request, env, noteMatch[1]);
       if (noteMatch && request.method === 'DELETE') return handleDeleteNote(request, env, noteMatch[1]);
+
+      // Deals (real estate transaction tracker)
+      if (url.pathname === '/deals' && request.method === 'GET') return handleListDeals(request, env);
+      if (url.pathname === '/deals' && request.method === 'POST') return handleCreateDeal(request, env);
+      const dealMatch = url.pathname.match(/^\/deals\/([A-Za-z0-9_-]+)$/);
+      if (dealMatch && request.method === 'PATCH') return handleUpdateDeal(request, env, dealMatch[1]);
+      if (dealMatch && request.method === 'DELETE') return handleDeleteDeal(request, env, dealMatch[1]);
 
       if (url.pathname === '/' || url.pathname === '/health') {
         return json(env, { ok: true, service: 'google-ai-workspace-auth' });
