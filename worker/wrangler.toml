@@ -7,14 +7,14 @@ compatibility_date = "2024-10-01"
 # Then paste the returned id below.
 [[kv_namespaces]]
 binding = "TOKENS"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
+id = "e115c8728fc545dea8c791c5a2f08c18"
 
 # Non-secret environment variables.
 # Set FRONTEND_ORIGIN to the URL your frontend is served from
 # (e.g. https://yourusername.github.io).
 [vars]
-FRONTEND_ORIGIN = "https://REPLACE_WITH_YOUR_FRONTEND_ORIGIN"
-GOOGLE_CLIENT_ID = "REPLACE_WITH_YOUR_GOOGLE_CLIENT_ID"
+FRONTEND_ORIGIN = "https://soloceo.github.io"
+GOOGLE_CLIENT_ID = "690892597411-k6rpnlurgicngbthcf2g452rng8f4o0j.apps.googleusercontent.com"
 OAUTH_SCOPES = "openid email profile https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/tasks"
 
 # Secrets — set via:
