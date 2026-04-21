@@ -119,11 +119,15 @@ export function searchNotes(notes: Note[], query: string): Note[] {
  * into any compatible instance.
  */
 export function exportNotesToFile(notes: Note[]): void {
+  // Strip the `owner` email before writing the file — the backup doesn't
+  // need to disclose which Google account stored each note, and the
+  // server re-assigns an owner on import anyway.
+  const sanitized = notes.map(({ owner, ...rest }) => rest);
   const payload = {
     version: 1,
     exported_at: Date.now(),
-    count: notes.length,
-    notes,
+    count: sanitized.length,
+    notes: sanitized,
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);

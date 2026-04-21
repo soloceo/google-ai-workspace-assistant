@@ -135,7 +135,7 @@ function corsHeaders(env: Env, extra: Record<string, string> = {}): Record<strin
     'Access-Control-Allow-Origin': env.FRONTEND_ORIGIN,
     'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
     'Vary': 'Origin',
     ...extra,
   };
@@ -441,19 +441,25 @@ async function getSessionEmails(env: Env, sid: string): Promise<string[]> {
   const { keys } = await env.TOKENS.list({ prefix: `sess:${sid}:` });
   return keys
     .map(k => k.name.substring(`sess:${sid}:`.length))
-    .filter(Boolean)
+    // Filter out our own metadata keys (prefixed with __)
+    .filter((e) => e && !e.startsWith('__'))
     .sort();
 }
 
 /**
- * Decide which email new notes should be saved under.
- * Rule: pick the email that already owns the most notes (so writes follow
- * where the data lives). Fall back to alphabetically-first if no notes
- * exist anywhere yet.
+ * Decide which email new notes should be saved under. Priority:
+ *   1. Explicit user choice persisted after a migrate (survives KV's
+ *      eventual consistency — critical so new notes don't drift back
+ *      to the old namespace right after a migrate).
+ *   2. Email that already owns the most notes (alphabetical tiebreak).
+ *   3. Alphabetically-first connected email (empty-state default).
  */
 async function getPrimaryOwnerForSession(env: Env, sid: string): Promise<string | null> {
   const emails = await getSessionEmails(env, sid);
   if (emails.length === 0) return null;
+
+  const pinned = await env.TOKENS.get(`sess:${sid}:__primaryOwner`);
+  if (pinned && emails.includes(pinned)) return pinned;
 
   const counts = await Promise.all(
     emails.map(async (email) => {
@@ -461,7 +467,6 @@ async function getPrimaryOwnerForSession(env: Env, sid: string): Promise<string 
       return { email, count: keys.length };
     })
   );
-
   counts.sort((a, b) => {
     if (b.count !== a.count) return b.count - a.count;
     return a.email.localeCompare(b.email);
@@ -479,9 +484,19 @@ async function migrateSessionNotes(env: Env, sid: string, ownerEmail: string): P
   if (keys.length === 0) return;
   for (const k of keys) {
     const value = await env.TOKENS.get(k.name);
+    if (!value) continue; // transient null from KV eventual consistency — DO NOT delete
     const noteId = k.name.substring(`note:${sid}:`.length);
-    if (value) {
-      await env.TOKENS.put(`note:owner:${ownerEmail}:${noteId}`, value);
+    const targetKey = `note:owner:${ownerEmail}:${noteId}`;
+    // Avoid overwriting a newer note with the same random ID (very unlikely
+    // given 96 bits of entropy, but migrations should never destroy data).
+    const existingAtTarget = await env.TOKENS.get(targetKey);
+    if (existingAtTarget) {
+      // Re-key with a fresh suffix instead of clobbering
+      const suffix = crypto.getRandomValues(new Uint8Array(4));
+      const unique = Array.from(suffix).map(b => b.toString(16).padStart(2, '0')).join('');
+      await env.TOKENS.put(`${targetKey}-${unique}`, value);
+    } else {
+      await env.TOKENS.put(targetKey, value);
     }
     await env.TOKENS.delete(k.name);
   }
@@ -491,10 +506,21 @@ async function migrateSessionNotes(env: Env, sid: string, ownerEmail: string): P
  * Find the KV key for a note by scanning all connected emails' namespaces.
  * Ensures callers can only hit notes owned by a Google account that's
  * currently authenticated in their session.
+ *
+ * If the same noteId exists in multiple namespaces (can happen after a
+ * partial migration), prefer the primaryOwner's copy so updates don't
+ * silently land in a "stale" namespace.
  */
 async function findNoteKey(env: Env, sid: string, noteId: string): Promise<{ key: string; owner: string } | null> {
   const emails = await getSessionEmails(env, sid);
-  for (const email of emails) {
+  if (emails.length === 0) return null;
+
+  const primary = await getPrimaryOwnerForSession(env, sid);
+  const order = primary && emails.includes(primary)
+    ? [primary, ...emails.filter((e) => e !== primary)]
+    : emails;
+
+  for (const email of order) {
     const key = `note:owner:${email}:${noteId}`;
     const exists = await env.TOKENS.get(key);
     if (exists) return { key, owner: email };
@@ -564,7 +590,9 @@ async function handleCreateNote(req: Request, env: Env): Promise<Response> {
   const note = sanitizeNote(body);
 
   const serialized = JSON.stringify(note);
-  if (serialized.length > MAX_NOTE_SIZE_BYTES) {
+  // String .length counts UTF-16 code units, not bytes. Use TextEncoder
+  // so CJK text is measured accurately against the 25MB KV value cap.
+  if (new TextEncoder().encode(serialized).length > MAX_NOTE_SIZE_BYTES) {
     return json(env, { error: 'Note too large (max 20MB incl. photos)' }, { status: 413 });
   }
 
@@ -587,7 +615,9 @@ async function handleUpdateNote(req: Request, env: Env, noteId: string): Promise
   const note = sanitizeNote({ ...existing, ...body }, existing);
 
   const serialized = JSON.stringify(note);
-  if (serialized.length > MAX_NOTE_SIZE_BYTES) {
+  // String .length counts UTF-16 code units, not bytes. Use TextEncoder
+  // so CJK text is measured accurately against the 25MB KV value cap.
+  if (new TextEncoder().encode(serialized).length > MAX_NOTE_SIZE_BYTES) {
     return json(env, { error: 'Note too large (max 20MB incl. photos)' }, { status: 413 });
   }
 
@@ -635,11 +665,23 @@ async function handleMigrateNotes(req: Request, env: Env): Promise<Response> {
       const value = await env.TOKENS.get(k.name);
       if (!value) continue;
       const noteId = k.name.substring(`note:owner:${email}:`.length);
-      await env.TOKENS.put(`note:owner:${target}:${noteId}`, value);
+      let targetKey = `note:owner:${target}:${noteId}`;
+      // On collision, write with a fresh suffix instead of overwriting the
+      // existing target note — data loss is worse than a duplicate.
+      if (await env.TOKENS.get(targetKey)) {
+        const suffix = crypto.getRandomValues(new Uint8Array(4));
+        const unique = Array.from(suffix).map(b => b.toString(16).padStart(2, '0')).join('');
+        targetKey = `${targetKey}-${unique}`;
+      }
+      await env.TOKENS.put(targetKey, value);
       await env.TOKENS.delete(k.name);
       moved += 1;
     }
   }
+
+  // Remember the user's explicit choice so subsequent creates don't drift
+  // back to the old owner due to KV list eventual consistency.
+  await env.TOKENS.put(`sess:${sid}:__primaryOwner`, target);
 
   return json(env, { ok: true, moved, target });
 }

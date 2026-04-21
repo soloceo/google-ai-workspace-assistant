@@ -259,11 +259,11 @@ export default function NoteEditor({ lang, note, geminiReady, onSave, onDelete, 
         <div className="flex gap-2 px-4 sm:px-5 py-3 sm:py-4 border-t border-[var(--border-light)] safe-area-pb-modal">
           <button
             onClick={handleSave}
-            disabled={saving || (!title.trim() && !text.trim() && photos.length === 0)}
+            disabled={saving || ocrIndex !== null || (!title.trim() && !text.trim() && photos.length === 0)}
             className="flex-1 h-11 sm:h-10 text-sm font-medium text-white bg-[var(--blue)] hover:bg-[var(--blue-hover)] rounded-[4px] t-btn-transition disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {saving ? <Loader2 className="size-4 animate-spin" /> : null}
-            {saving ? t.noteSaving : t.noteSave}
+            {(saving || ocrIndex !== null) ? <Loader2 className="size-4 animate-spin" /> : null}
+            {ocrIndex !== null ? t.noteOcrRunning : saving ? t.noteSaving : t.noteSave}
           </button>
           <button
             onClick={onClose}

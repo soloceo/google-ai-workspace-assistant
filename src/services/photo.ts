@@ -23,34 +23,42 @@ export async function resizeImage(
   const quality = opts?.quality ?? 0.85;
 
   const img = await loadImage(file);
-  let { width, height } = img;
-  if (width > maxDim || height > maxDim) {
-    const ratio = Math.min(maxDim / width, maxDim / height);
-    width = Math.round(width * ratio);
-    height = Math.round(height * ratio);
+  try {
+    let { width, height } = img;
+    if (width > maxDim || height > maxDim) {
+      const ratio = Math.min(maxDim / width, maxDim / height);
+      width = Math.round(width * ratio);
+      height = Math.round(height * ratio);
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas 2D context unavailable');
+    ctx.drawImage(img, 0, 0, width, height);
+    const dataUrl = canvas.toDataURL('image/jpeg', quality);
+    return {
+      dataUrl,
+      width,
+      height,
+      sizeBytes: Math.round((dataUrl.length - 'data:image/jpeg;base64,'.length) * 3 / 4),
+    };
+  } finally {
+    // Revoke regardless of success so we don't leak the Blob URL on error.
+    URL.revokeObjectURL(img.src);
   }
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Canvas 2D context unavailable');
-  ctx.drawImage(img, 0, 0, width, height);
-  const dataUrl = canvas.toDataURL('image/jpeg', quality);
-  URL.revokeObjectURL(img.src);
-  return {
-    dataUrl,
-    width,
-    height,
-    sizeBytes: Math.round((dataUrl.length - 'data:image/jpeg;base64,'.length) * 3 / 4),
-  };
 }
 
 function loadImage(file: File | Blob): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('Failed to load image'));
-    img.src = URL.createObjectURL(file);
+    img.onerror = () => {
+      URL.revokeObjectURL(url); // critical: also revoke on load failure
+      reject(new Error('Failed to load image'));
+    };
+    img.src = url;
   });
 }
 

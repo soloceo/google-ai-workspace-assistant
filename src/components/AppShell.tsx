@@ -1027,10 +1027,15 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
               return { success: true, message: `No notes found matching "${args.query}"` };
             }
             const top = matches.slice(0, 10);
+            const queryTerms = (args.query || "").toLowerCase().split(/\s+/).filter(Boolean);
             const summaries = top.map(n => {
               const photoNote = n.photos.length > 0 ? ` [${n.photos.length} photo${n.photos.length > 1 ? "s" : ""}]` : "";
-              const ocr = n.photoTexts.filter(Boolean).join(" | ");
-              const ocrNote = ocr ? ` (photo text: ${ocr.slice(0, 200)})` : "";
+              // Pick the photo text that actually contains a query term,
+              // so matches found "in photo #5" don't get truncated away.
+              const nonEmpty = n.photoTexts.filter(Boolean);
+              const withHit = nonEmpty.find(t => queryTerms.some(q => t.toLowerCase().includes(q)));
+              const chosen = withHit || nonEmpty[0] || "";
+              const ocrNote = chosen ? ` (photo text: ${chosen.slice(0, 300)})` : "";
               const body = n.text.slice(0, 300);
               return `[${n.category}] ${n.title || "(untitled)"}${photoNote}\n${body}${ocrNote}`;
             }).join("\n---\n");
