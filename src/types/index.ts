@@ -54,3 +54,16 @@ export interface StoredAccount {
   token_expiry: number;
   color: string;
 }
+
+export type NoteCategory = 'product' | 'idea' | 'task' | 'other';
+
+export interface Note {
+  id: string;
+  created_at: number;
+  updated_at: number;
+  title: string;
+  text: string;
+  category: NoteCategory;
+  photos: string[];      // base64 data URLs (JPEG)
+  photoTexts: string[];  // parallel: OCR-extracted text per photo (for search)
+}

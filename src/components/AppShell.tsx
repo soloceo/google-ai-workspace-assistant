@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { LayoutDashboard, Mail, Calendar as CalendarIcon, Sparkles, CheckSquare, Settings, LogOut, Languages, Plus, Search, ChevronDown, X, RefreshCw } from "lucide-react";
+import { LayoutDashboard, Mail, Calendar as CalendarIcon, Sparkles, CheckSquare, NotebookPen, Settings, LogOut, Languages, Plus, Search, ChevronDown, X, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { translations, type Language } from "../translations";
 import * as authService from "../services/auth";
@@ -7,6 +7,7 @@ import * as gmail from "../services/gmail";
 import * as calendarService from "../services/calendar";
 import * as tasksService from "../services/tasks";
 import * as gemini from "../services/gemini";
+import * as notesApi from "../services/notes";
 import type { StoredAccount, AccountSummary, UserProfile, ChatMessage } from "../types";
 import type { TaskList, Task } from "../services/tasks";
 import DashboardView from "./dashboard/DashboardView";
@@ -14,10 +15,11 @@ import MailView from "./mail/MailView";
 import CalendarView from "./calendar/CalendarView";
 import TasksView from "./tasks/TasksView";
 import ChatView from "./chat/ChatView";
+import NotesView from "./notes/NotesView";
 import SettingsPanel from "./settings/SettingsPanel";
 import ComposeModal from "./mail/ComposeModal";
 
-export type AppTab = "dashboard" | "mail" | "calendar" | "tasks" | "ai";
+export type AppTab = "dashboard" | "mail" | "calendar" | "tasks" | "notes" | "ai";
 
 // Demo data
 const DEMO_ACCOUNTS: AccountSummary[] = [
@@ -1009,6 +1011,33 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
               : `No emails found matching "${args.query}"`,
           };
         }
+        // ── Notes ──
+        case "search_notes": {
+          if (!authService.USE_AUTH_BACKEND_FLAG) {
+            return { success: false, message: "Notes feature requires the Worker backend. Notebook is not configured." };
+          }
+          try {
+            let all = await notesApi.listNotes();
+            if (args.category && ["product", "idea", "task", "other"].includes(args.category)) {
+              all = all.filter(n => n.category === args.category);
+            }
+            const matches = notesApi.searchNotes(all, args.query || "");
+            if (matches.length === 0) {
+              return { success: true, message: `No notes found matching "${args.query}"` };
+            }
+            const top = matches.slice(0, 10);
+            const summaries = top.map(n => {
+              const photoNote = n.photos.length > 0 ? ` [${n.photos.length} photo${n.photos.length > 1 ? "s" : ""}]` : "";
+              const ocr = n.photoTexts.filter(Boolean).join(" | ");
+              const ocrNote = ocr ? ` (photo text: ${ocr.slice(0, 200)})` : "";
+              const body = n.text.slice(0, 300);
+              return `[${n.category}] ${n.title || "(untitled)"}${photoNote}\n${body}${ocrNote}`;
+            }).join("\n---\n");
+            return { success: true, message: `Found ${matches.length} note${matches.length > 1 ? "s" : ""}:\n${summaries}` };
+          } catch (e: any) {
+            return { success: false, message: e.message || "Failed to search notes" };
+          }
+        }
         default:
           return { success: false, message: `Unknown action: ${name}` };
       }
@@ -1030,6 +1059,7 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
     { id: "mail", icon: Mail, label: t.mail },
     { id: "calendar", icon: CalendarIcon, label: t.calendar },
     { id: "tasks", icon: CheckSquare, label: t.tasks },
+    { id: "notes", icon: NotebookPen, label: t.notes },
     { id: "ai", icon: Sparkles, label: t.aiChat },
   ];
 
@@ -1255,6 +1285,13 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
               onDeleteList={handleDeleteTaskList}
               onClearCompleted={handleClearCompleted}
               onRefresh={() => fetchData(searchQuery)}
+            />
+          )}
+          {activeTab === "notes" && (
+            <NotesView
+              lang={lang}
+              geminiApiKey={geminiApiKey}
+              onOpenSettings={() => setShowSettings(true)}
             />
           )}
           {activeTab === "ai" && (

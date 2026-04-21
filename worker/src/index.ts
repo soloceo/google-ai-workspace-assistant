@@ -386,6 +386,110 @@ async function handleRevoke(req: Request, env: Env): Promise<Response> {
   return json(env, { ok: true });
 }
 
+// ─── Notes ──────────────────────────────────────────────────
+// Personal notebook, scoped to the browser session (not per-Google-account).
+// KV key format: note:${sid}:${noteId}
+// Notes are NOT encrypted — they live alongside refresh tokens in KV and
+// are only readable by the user who owns the session cookie. Photos are
+// stored inline as base64 JPEG after client-side resize.
+
+const NOTE_CATEGORIES = new Set(['product', 'idea', 'task', 'other']);
+const MAX_NOTE_SIZE_BYTES = 20 * 1024 * 1024; // 20MB — KV value limit is 25MB
+
+interface StoredNote {
+  id: string;
+  created_at: number;
+  updated_at: number;
+  title: string;
+  text: string;
+  category: string; // product | idea | task | other
+  photos: string[]; // base64 data URLs (JPEG after client-side resize)
+  photoTexts: string[]; // parallel: OCR-extracted text per photo
+}
+
+function newNoteId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(12));
+  return b64encode(bytes).replace(/[+/=]/g, (c) => ({ '+': '-', '/': '_', '=': '' })[c]!);
+}
+
+function sanitizeNote(n: any, existing?: StoredNote): StoredNote {
+  const now = Date.now();
+  return {
+    id: existing?.id || newNoteId(),
+    created_at: existing?.created_at || now,
+    updated_at: now,
+    title: typeof n?.title === 'string' ? n.title.slice(0, 500) : existing?.title || '',
+    text: typeof n?.text === 'string' ? n.text.slice(0, 100_000) : existing?.text || '',
+    category: NOTE_CATEGORIES.has(n?.category) ? n.category : existing?.category || 'other',
+    photos: Array.isArray(n?.photos) ? n.photos.filter((p: any) => typeof p === 'string').slice(0, 20) : existing?.photos || [],
+    photoTexts: Array.isArray(n?.photoTexts) ? n.photoTexts.filter((t: any) => typeof t === 'string').slice(0, 20) : existing?.photoTexts || [],
+  };
+}
+
+async function handleListNotes(req: Request, env: Env): Promise<Response> {
+  const sid = getSessionId(req);
+  if (!sid) return json(env, { notes: [] });
+
+  const { keys } = await env.TOKENS.list({ prefix: `note:${sid}:` });
+  const notes = await Promise.all(
+    keys.map(async (k) => {
+      const raw = await env.TOKENS.get(k.name);
+      if (!raw) return null;
+      try {
+        return JSON.parse(raw) as StoredNote;
+      } catch {
+        return null;
+      }
+    })
+  );
+  const valid = notes.filter((n): n is StoredNote => n !== null);
+  valid.sort((a, b) => b.updated_at - a.updated_at);
+  return json(env, { notes: valid });
+}
+
+async function handleCreateNote(req: Request, env: Env): Promise<Response> {
+  const sid = getSessionId(req);
+  if (!sid) return json(env, { error: 'No session' }, { status: 401 });
+
+  const body = (await req.json().catch(() => ({}))) as Record<string, any>;
+  const note = sanitizeNote(body);
+
+  const serialized = JSON.stringify(note);
+  if (serialized.length > MAX_NOTE_SIZE_BYTES) {
+    return json(env, { error: 'Note too large (max 20MB incl. photos)' }, { status: 413 });
+  }
+
+  await env.TOKENS.put(`note:${sid}:${note.id}`, serialized);
+  return json(env, { note });
+}
+
+async function handleUpdateNote(req: Request, env: Env, noteId: string): Promise<Response> {
+  const sid = getSessionId(req);
+  if (!sid) return json(env, { error: 'No session' }, { status: 401 });
+
+  const raw = await env.TOKENS.get(`note:${sid}:${noteId}`);
+  if (!raw) return json(env, { error: 'Not found' }, { status: 404 });
+  const existing = JSON.parse(raw) as StoredNote;
+
+  const body = (await req.json().catch(() => ({}))) as Record<string, any>;
+  const note = sanitizeNote({ ...existing, ...body }, existing);
+
+  const serialized = JSON.stringify(note);
+  if (serialized.length > MAX_NOTE_SIZE_BYTES) {
+    return json(env, { error: 'Note too large (max 20MB incl. photos)' }, { status: 413 });
+  }
+
+  await env.TOKENS.put(`note:${sid}:${note.id}`, serialized);
+  return json(env, { note });
+}
+
+async function handleDeleteNote(req: Request, env: Env, noteId: string): Promise<Response> {
+  const sid = getSessionId(req);
+  if (!sid) return json(env, { ok: true });
+  await env.TOKENS.delete(`note:${sid}:${noteId}`);
+  return json(env, { ok: true });
+}
+
 // ─── Router ─────────────────────────────────────────────────
 
 export default {
@@ -403,6 +507,14 @@ export default {
       if (url.pathname === '/auth/accounts' && request.method === 'GET') return handleAccounts(request, env);
       if (url.pathname === '/auth/token' && request.method === 'POST') return handleToken(request, env);
       if (url.pathname === '/auth/revoke' && request.method === 'POST') return handleRevoke(request, env);
+
+      // Notes
+      if (url.pathname === '/notes' && request.method === 'GET') return handleListNotes(request, env);
+      if (url.pathname === '/notes' && request.method === 'POST') return handleCreateNote(request, env);
+      const noteMatch = url.pathname.match(/^\/notes\/([A-Za-z0-9_-]+)$/);
+      if (noteMatch && request.method === 'PATCH') return handleUpdateNote(request, env, noteMatch[1]);
+      if (noteMatch && request.method === 'DELETE') return handleDeleteNote(request, env, noteMatch[1]);
+
       if (url.pathname === '/' || url.pathname === '/health') {
         return json(env, { ok: true, service: 'google-ai-workspace-auth' });
       }

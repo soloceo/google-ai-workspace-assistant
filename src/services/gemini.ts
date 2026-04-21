@@ -620,6 +620,19 @@ export const WORKSPACE_TOOLS = [{
         required: ["query"],
       },
     },
+    // ── Notes (personal notebook with photos) ──
+    {
+      name: "search_notes",
+      description: "Search the user's personal notebook. Notes can contain text and photos of products, receipts, labels — photo text is OCR'd at upload time, so brand names, prices, model numbers from pictures are all searchable. Use this when the user asks about something they previously noted down, photographed, or saved.",
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          query: { type: Type.STRING, description: "Keywords to match against note titles, body text, and OCR'd photo text. Multiple words are ANDed together." },
+          category: { type: Type.STRING, description: "Optional filter: 'product', 'idea', 'task', or 'other'." },
+        },
+        required: ["query"],
+      },
+    },
   ],
 }];
 
@@ -660,9 +673,10 @@ Today is ${today}.
 Instructions:
 - Answer questions based on the provided workspace data.
 - When the user asks about emails not in the provided data (e.g. older emails, specific searches), use the search_emails tool with Gmail search syntax (e.g. "newer_than:30d is:important", "from:alice after:2026/03/01", "subject:invoice").
+- When the user asks about something they **noted down, photographed, or saved to their notebook** (products they're considering, wine labels, receipts, ideas, items to remember), use the **search_notes** tool. Photo text in notes is OCR'd, so brand names, prices, model numbers from pictures are searchable. Example triggers: "那瓶红酒是什么年份", "我上次拍的耳机是哪个牌子", "what did I save about that book", "remind me of that product I photographed".
 - For fuzzy matching: find the closest matching item by title/subject. If ambiguous, ask the user to clarify.
 - **IMPORTANT: For CREATE actions (create_task, create_event, send_email), ALWAYS confirm with the user FIRST before executing.** Present the details clearly and ask "确认创建？" or "Should I proceed?". Only call the tool AFTER the user confirms. If the user says something vague like "help me create a task", ask them for the specific details (title, date, etc.) before executing.
-- For read-only actions (search_emails) and quick actions (complete_task, delete_task, archive_email, trash_email), you may execute directly.
+- For read-only actions (search_emails, search_notes) and quick actions (complete_task, delete_task, archive_email, trash_email), you may execute directly.
 - Be concise. Use bullet points and emoji for readability.
 - After executing an action, confirm what you did.
 - Respond in ${params.lang === 'zh' ? 'Chinese (Simplified)' : 'English'}.`;
