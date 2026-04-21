@@ -560,7 +560,7 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
     } catch { toast.error(t.actionFailed); }
   }, [isDemo, taskItems, t]);
 
-  const handleCreateTask = useCallback(async (listId: string, task: { title: string; notes?: string; due?: string }) => {
+  const handleCreateTask = useCallback(async (listId: string, task: { title: string; notes?: string; due?: string; parent?: string }) => {
     if (isDemo) {
       const list = taskLists.find(l => l.id === listId);
       const newTask: Task = {
@@ -568,6 +568,7 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
         title: task.title,
         notes: task.notes,
         due: task.due,
+        parent: task.parent,
         status: "needsAction",
         listId,
         accountEmail: list?.accountEmail || DEMO_ACCOUNTS[0].email,
@@ -847,6 +848,72 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
             setTaskItems(prev => [{ ...created, listId: list.id, accountEmail: list.accountEmail, accountColor: list.accountColor }, ...prev]);
           }
           return { success: true, message: `Task "${args.title}" created in "${list.title}"` };
+        }
+        case "break_down_task": {
+          const parent = taskItems.find(t =>
+            !t.parent && t.status === "needsAction" &&
+            t.title.toLowerCase().includes(String(args.parentTitle || "").toLowerCase())
+          );
+          if (!parent) return { success: false, message: `No pending parent task matching "${args.parentTitle}" found. Create the parent first with create_task.` };
+          const list = taskLists.find(l => l.id === parent.listId) || taskLists.find(l => l.accountEmail === parent.accountEmail);
+          if (!list) return { success: false, message: "Parent task's list not found" };
+
+          const rawSubs = Array.isArray(args.subtasks) ? args.subtasks : [];
+          const subs = rawSubs.map((s: any) => String(s || "").trim()).filter(Boolean).slice(0, 10);
+          if (subs.length === 0) return { success: false, message: "No subtasks provided" };
+
+          let created = 0;
+          for (const title of subs) {
+            try {
+              if (isDemo) {
+                const newSub: Task = {
+                  id: `t${Date.now()}-${created}`,
+                  title,
+                  status: "needsAction",
+                  parent: parent.id,
+                  listId: list.id,
+                  accountEmail: list.accountEmail,
+                  accountColor: list.accountColor,
+                };
+                setTaskItems(prev => [...prev, newSub]);
+              } else {
+                const newSub = await authService.withFreshToken(list.accountEmail, token =>
+                  tasksService.createTask(token, list.id, { title, parent: parent.id })
+                );
+                setTaskItems(prev => [...prev, { ...newSub, listId: list.id, accountEmail: list.accountEmail, accountColor: list.accountColor }]);
+              }
+              created += 1;
+            } catch (e) {
+              console.error("Subtask creation failed:", e);
+            }
+          }
+          return { success: true, message: `Broke down "${parent.title}" into ${created} subtask${created === 1 ? "" : "s"}: ${subs.slice(0, created).map(s => `• ${s}`).join("\n")}` };
+        }
+        case "add_subtask": {
+          const parent = taskItems.find(t =>
+            !t.parent && t.status === "needsAction" &&
+            t.title.toLowerCase().includes(String(args.parentTitle || "").toLowerCase())
+          );
+          if (!parent) return { success: false, message: `No pending parent task matching "${args.parentTitle}" found.` };
+          const list = taskLists.find(l => l.id === parent.listId) || taskLists.find(l => l.accountEmail === parent.accountEmail);
+          if (!list) return { success: false, message: "Parent task's list not found" };
+          const title = String(args.title || "").trim();
+          if (!title) return { success: false, message: "Subtask title required" };
+
+          if (isDemo) {
+            const newSub: Task = {
+              id: `t${Date.now()}`, title,
+              status: "needsAction", parent: parent.id, listId: list.id,
+              accountEmail: list.accountEmail, accountColor: list.accountColor,
+            };
+            setTaskItems(prev => [...prev, newSub]);
+          } else {
+            const newSub = await authService.withFreshToken(list.accountEmail, token =>
+              tasksService.createTask(token, list.id, { title, parent: parent.id })
+            );
+            setTaskItems(prev => [...prev, { ...newSub, listId: list.id, accountEmail: list.accountEmail, accountColor: list.accountColor }]);
+          }
+          return { success: true, message: `Added subtask "${title}" under "${parent.title}"` };
         }
         case "complete_task": {
           const task = taskItems.find(t =>

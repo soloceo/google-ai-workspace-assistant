@@ -179,6 +179,8 @@ export const translations = {
     noTasks: "No tasks yet",
     taskCompleted: "Task completed",
     taskUncompleted: "Task reopened",
+    addSubtask: "Add subtask",
+    breakDownTask: "Break down with AI",
     featureTasks: "Task Management",
     featureTasksDesc: "Manage your Google Tasks seamlessly",
     // ── Onboarding & Hints ──
@@ -423,6 +425,8 @@ export const translations = {
     noTasks: "暂无任务",
     taskCompleted: "任务已完成",
     taskUncompleted: "任务已重新打开",
+    addSubtask: "添加子任务",
+    breakDownTask: "AI 帮我拆分",
     featureTasks: "任务管理",
     featureTasksDesc: "无缝管理你的 Google Tasks",
     // ── Onboarding & Hints ──

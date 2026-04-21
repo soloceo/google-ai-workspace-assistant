@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
-  Check, Circle, Plus, Trash2, ChevronDown, ChevronRight,
-  ListTodo, Calendar as CalendarIcon, FileText, X, Clock,
+  Check, Plus, Trash2, ChevronDown, ChevronRight,
+  ListTodo, Calendar as CalendarIcon, FileText, Clock, CornerDownRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { translations, type Language } from "../../translations";
@@ -16,7 +16,7 @@ interface TasksViewProps {
   lang: Language;
   accounts: AccountSummary[];
   onToggleTask: (listId: string, taskId: string, completed: boolean) => void;
-  onCreateTask: (listId: string, task: { title: string; notes?: string; due?: string }) => void;
+  onCreateTask: (listId: string, task: { title: string; notes?: string; due?: string; parent?: string }) => void;
   onDeleteTask: (listId: string, taskId: string) => void;
   onCreateList: (title: string, accountEmail?: string) => void;
   onDeleteList: (listId: string) => void;
@@ -41,6 +41,9 @@ export default function TasksView({
   const [newListAccount, setNewListAccount] = useState("");
   const [showCompleted, setShowCompleted] = useState(true);
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
+  // Task id we're currently adding a subtask under, plus its draft title.
+  const [addingSubtaskFor, setAddingSubtaskFor] = useState<string | null>(null);
+  const [subtaskDraft, setSubtaskDraft] = useState("");
 
   // Mobile detection
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -98,11 +101,23 @@ export default function TasksView({
 
   const selectedList = taskLists.find(l => l.id === selectedListId);
 
+  const handleAddSubtask = useCallback((parentId: string) => {
+    const title = subtaskDraft.trim();
+    if (!title || !selectedListId) return;
+    onCreateTask(selectedListId, { title, parent: parentId });
+    setSubtaskDraft("");
+    setAddingSubtaskFor(null);
+  }, [subtaskDraft, selectedListId, onCreateTask]);
+
   // ── Render Task Item ──
   const renderTask = (task: Task, isSubtask = false) => {
     const isCompleted = task.status === "completed";
     const isExpanded = expandedTask === task.id;
     const subs = subtasksMap.get(task.id) || [];
+    // Progress only shown on parent tasks that actually have subtasks.
+    const hasSubs = !isSubtask && subs.length > 0;
+    const doneSubs = subs.filter(s => s.status === "completed").length;
+    const progress = hasSubs ? Math.round((doneSubs / subs.length) * 100) : 0;
     const hasDue = task.due && !isCompleted;
     const dueDate = task.due ? new Date(task.due) : null;
     // Normalize to date-only comparison to avoid timezone issues with Google Tasks dates
@@ -165,6 +180,23 @@ export default function TasksView({
                 {task.notes}
               </p>
             )}
+
+            {/* Progress bar — only when this task has subtasks. Clicking
+                the whole task toggles expand, so progress lives inside
+                the clickable region. */}
+            {hasSubs && (
+              <div className="flex items-center gap-2 mt-2">
+                <div className="flex-1 h-1.5 bg-[var(--bg-hover)] rounded-full overflow-hidden">
+                  <div
+                    className={`h-full t-transition ${progress === 100 ? "bg-emerald-500" : "bg-[var(--blue)]"}`}
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+                <span className="text-[11px] tabular-nums text-[var(--text-quaternary)] flex-shrink-0">
+                  {doneSubs}/{subs.length}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Notes indicator */}
@@ -183,6 +215,44 @@ export default function TasksView({
 
         {/* Subtasks */}
         {subs.map(sub => renderTask(sub, true))}
+
+        {/* "+ Subtask" — shown under top-level tasks when expanded.
+            Google Tasks only supports one nesting level, so we don't
+            show it on rows that are themselves subtasks. */}
+        {!isSubtask && isExpanded && !isCompleted && (
+          addingSubtaskFor === task.id ? (
+            <div className="ml-6 sm:ml-8 flex items-center gap-2 py-1.5 px-2 sm:px-3">
+              <CornerDownRight className="size-3.5 text-[var(--text-quaternary)] flex-shrink-0" />
+              <input
+                autoFocus
+                value={subtaskDraft}
+                onChange={e => setSubtaskDraft(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === "Enter") { e.preventDefault(); handleAddSubtask(task.id); }
+                  if (e.key === "Escape") { setAddingSubtaskFor(null); setSubtaskDraft(""); }
+                }}
+                onBlur={() => { if (!subtaskDraft.trim()) { setAddingSubtaskFor(null); } }}
+                placeholder={t.addSubtask}
+                className="flex-1 text-[13px] sm:text-xs bg-transparent border-b border-[var(--border-light)] text-[var(--text-primary)] placeholder:text-[var(--text-quaternary)] focus:outline-none focus:border-[var(--blue)] py-1"
+              />
+              <button
+                onClick={() => handleAddSubtask(task.id)}
+                disabled={!subtaskDraft.trim()}
+                className="text-[11px] text-[var(--blue)] hover:underline disabled:opacity-40"
+              >
+                {t.save}
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => { setAddingSubtaskFor(task.id); setSubtaskDraft(""); }}
+              className="ml-6 sm:ml-8 flex items-center gap-1.5 py-1 px-2 text-[11px] text-[var(--text-quaternary)] hover:text-[var(--blue)] t-transition"
+            >
+              <Plus className="size-3" />
+              {t.addSubtask}
+            </button>
+          )
+        )}
       </div>
     );
   };

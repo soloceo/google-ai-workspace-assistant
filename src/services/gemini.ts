@@ -524,6 +524,34 @@ export const WORKSPACE_TOOLS = [{
       },
     },
     {
+      name: "break_down_task",
+      description: "Break a high-level goal into 3–7 actionable subtasks under an existing parent task. Use when the user says things like '帮我拆分一下' / 'help me break this down' / 'how do I tackle this project'. Finds the parent by fuzzy title match and creates the suggested subtasks under it. If the parent task doesn't exist yet, the AI should create it first with create_task.",
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          parentTitle: { type: Type.STRING, description: "Title of the parent task to break down (fuzzy match against existing tasks)." },
+          subtasks: {
+            type: Type.ARRAY,
+            description: "3–7 concrete, actionable subtasks. Each should be one specific action, not a vague area.",
+            items: { type: Type.STRING },
+          },
+        },
+        required: ["parentTitle", "subtasks"],
+      },
+    },
+    {
+      name: "add_subtask",
+      description: "Add a single subtask under an existing parent task. Use for incremental additions rather than full breakdown.",
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          parentTitle: { type: Type.STRING, description: "Title of the parent task (fuzzy match)." },
+          title: { type: Type.STRING, description: "The new subtask's title." },
+        },
+        required: ["parentTitle", "title"],
+      },
+    },
+    {
       name: "complete_task",
       description: "Mark a task as completed by its title",
       parameters: {
@@ -676,7 +704,8 @@ Instructions:
 - When the user asks about something they **noted down, photographed, or saved to their notebook** (products they're considering, wine labels, receipts, ideas, items to remember), use the **search_notes** tool. Photo text in notes is OCR'd, so brand names, prices, model numbers from pictures are searchable. Example triggers: "那瓶红酒是什么年份", "我上次拍的耳机是哪个牌子", "what did I save about that book", "remind me of that product I photographed".
 - For fuzzy matching: find the closest matching item by title/subject. If ambiguous, ask the user to clarify.
 - **IMPORTANT: For CREATE actions (create_task, create_event, send_email), ALWAYS confirm with the user FIRST before executing.** Present the details clearly and ask "确认创建？" or "Should I proceed?". Only call the tool AFTER the user confirms. If the user says something vague like "help me create a task", ask them for the specific details (title, date, etc.) before executing.
-- For read-only actions (search_emails, search_notes) and quick actions (complete_task, delete_task, archive_email, trash_email), you may execute directly.
+- For read-only actions (search_emails, search_notes) and quick actions (complete_task, delete_task, archive_email, trash_email, add_subtask, break_down_task), you may execute directly.
+- When the user asks to "break down" / "拆分" / "split into steps" / "help me plan" a goal, first check if a matching parent task already exists. If yes, call **break_down_task** with 3–7 concrete actionable subtasks. If not, create the parent with **create_task** first (with confirmation), then break it down. Subtasks track progress automatically — the parent task shows a progress bar of (completed subtasks / total).
 - Be concise. Use bullet points and emoji for readability.
 - After executing an action, confirm what you did.
 - Respond in ${params.lang === 'zh' ? 'Chinese (Simplified)' : 'English'}.`;
