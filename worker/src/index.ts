@@ -95,7 +95,10 @@ function getSessionId(req: Request): string | null {
 }
 
 function sessionCookie(sid: string): string {
-  return `${SESSION_COOKIE}=${sid}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL_SECONDS}`;
+  // SameSite=None (+ Secure) is required because the frontend makes
+  // cross-origin fetch requests to the Worker with credentials. Lax
+  // would prevent the cookie from being sent on fetch/XHR.
+  return `${SESSION_COOKIE}=${sid}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=${SESSION_TTL_SECONDS}`;
 }
 
 async function listAccountsForSession(env: Env, sid: string): Promise<StoredAccount[]> {
@@ -217,7 +220,11 @@ async function handleStart(req: Request, env: Env): Promise<Response> {
   const newSession = !sid;
   if (!sid) sid = newSessionId();
 
-  const state = `${sid}.${encodeURIComponent(returnTo)}`;
+  // Use '~' as separator: not produced by base64url (sid) and not
+  // produced by encodeURIComponent (returnTo), so it's unambiguous.
+  // Previous version used '.' which collided with dots in the URL
+  // (e.g. "soloceo.github.io") and truncated the return URL.
+  const state = `${sid}~${encodeURIComponent(returnTo)}`;
   const redirectUri = new URL('/auth/callback', req.url).toString();
 
   const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
@@ -247,7 +254,9 @@ async function handleCallback(req: Request, env: Env): Promise<Response> {
   if (error) return new Response(`OAuth error: ${error}`, { status: 400 });
   if (!code) return new Response('Missing code', { status: 400 });
 
-  const [sid, returnToEnc] = state.split('.');
+  const sepIdx = state.indexOf('~');
+  const sid = sepIdx > 0 ? state.slice(0, sepIdx) : '';
+  const returnToEnc = sepIdx > 0 ? state.slice(sepIdx + 1) : '';
   const returnTo = returnToEnc ? decodeURIComponent(returnToEnc) : env.FRONTEND_ORIGIN;
   if (!sid) return new Response('Invalid state', { status: 400 });
 
