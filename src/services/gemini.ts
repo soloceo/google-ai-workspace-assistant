@@ -620,30 +620,6 @@ export const WORKSPACE_TOOLS = [{
         required: ["query"],
       },
     },
-    // ── Deals (real estate transaction tracker) ──
-    {
-      name: "list_deals",
-      description: "List the user's real estate deals (sales, purchases, rentals). Use when the user asks about their deals, pipeline, active transactions, or status of a specific property. Returns each deal's address, type, current stage, progress percent, contact info, prices, commission, and target close date.",
-      parameters: {
-        type: Type.OBJECT,
-        properties: {
-          status: { type: Type.STRING, description: "Optional filter: 'active' (default) or 'archived'." },
-          type: { type: Type.STRING, description: "Optional filter: 'sell', 'buy', 'rent', or 'other'." },
-          query: { type: Type.STRING, description: "Optional keyword search against address, client name, notes, tags." },
-        },
-      },
-    },
-    {
-      name: "advance_deal_stage",
-      description: "Move a deal forward by one stage (e.g. from 'Showing' to 'Offer received'). Use when the user says something like 'mark the Main St listing as having received an offer' or '把 Main St 那套推进到下一步'. Requires a deal address or a clearly matching identifier.",
-      parameters: {
-        type: Type.OBJECT,
-        properties: {
-          address: { type: Type.STRING, description: "Partial match against the deal's property address." },
-        },
-        required: ["address"],
-      },
-    },
     // ── Notes (personal notebook with photos) ──
     {
       name: "search_notes",
@@ -698,10 +674,9 @@ Instructions:
 - Answer questions based on the provided workspace data.
 - When the user asks about emails not in the provided data (e.g. older emails, specific searches), use the search_emails tool with Gmail search syntax (e.g. "newer_than:30d is:important", "from:alice after:2026/03/01", "subject:invoice").
 - When the user asks about something they **noted down, photographed, or saved to their notebook** (products they're considering, wine labels, receipts, ideas, items to remember), use the **search_notes** tool. Photo text in notes is OCR'd, so brand names, prices, model numbers from pictures are searchable. Example triggers: "那瓶红酒是什么年份", "我上次拍的耳机是哪个牌子", "what did I save about that book", "remind me of that product I photographed".
-- The user is a real estate agent. When they ask about their **deals, pipeline, listings, showings, transactions, clients, or a specific property address**, use **list_deals**. When they say "move that deal to the next stage", "mark as offer received", "推进 Main St 那套 / 把 X 街那套标记为成交", use **advance_deal_stage** with a partial address match. Deal types are sell/buy/rent/other.
 - For fuzzy matching: find the closest matching item by title/subject. If ambiguous, ask the user to clarify.
 - **IMPORTANT: For CREATE actions (create_task, create_event, send_email), ALWAYS confirm with the user FIRST before executing.** Present the details clearly and ask "确认创建？" or "Should I proceed?". Only call the tool AFTER the user confirms. If the user says something vague like "help me create a task", ask them for the specific details (title, date, etc.) before executing.
-- For read-only actions (search_emails, search_notes, list_deals) and quick actions (complete_task, delete_task, archive_email, trash_email, advance_deal_stage), you may execute directly.
+- For read-only actions (search_emails, search_notes) and quick actions (complete_task, delete_task, archive_email, trash_email), you may execute directly.
 - Be concise. Use bullet points and emoji for readability.
 - After executing an action, confirm what you did.
 - Respond in ${params.lang === 'zh' ? 'Chinese (Simplified)' : 'English'}.`;

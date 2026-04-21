@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { LayoutDashboard, Mail, Calendar as CalendarIcon, Sparkles, CheckSquare, NotebookPen, Briefcase, Settings, LogOut, Languages, Plus, Search, ChevronDown, X, RefreshCw } from "lucide-react";
+import { LayoutDashboard, Mail, Calendar as CalendarIcon, Sparkles, CheckSquare, NotebookPen, Settings, LogOut, Languages, Plus, Search, ChevronDown, X, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { translations, type Language } from "../translations";
 import * as authService from "../services/auth";
@@ -8,7 +8,6 @@ import * as calendarService from "../services/calendar";
 import * as tasksService from "../services/tasks";
 import * as gemini from "../services/gemini";
 import * as notesApi from "../services/notes";
-import * as dealsApi from "../services/deals";
 import type { StoredAccount, AccountSummary, UserProfile, ChatMessage } from "../types";
 import type { TaskList, Task } from "../services/tasks";
 import DashboardView from "./dashboard/DashboardView";
@@ -17,11 +16,10 @@ import CalendarView from "./calendar/CalendarView";
 import TasksView from "./tasks/TasksView";
 import ChatView from "./chat/ChatView";
 import NotesView from "./notes/NotesView";
-import DealsView from "./deals/DealsView";
 import SettingsPanel from "./settings/SettingsPanel";
 import ComposeModal from "./mail/ComposeModal";
 
-export type AppTab = "dashboard" | "mail" | "calendar" | "tasks" | "deals" | "notes" | "ai";
+export type AppTab = "dashboard" | "mail" | "calendar" | "tasks" | "notes" | "ai";
 
 // Demo data
 const DEMO_ACCOUNTS: AccountSummary[] = [
@@ -1013,67 +1011,6 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
               : `No emails found matching "${args.query}"`,
           };
         }
-        // ── Deals (real estate) ──
-        case "list_deals": {
-          if (!authService.USE_AUTH_BACKEND_FLAG) {
-            return { success: false, message: "Deals require the Worker backend." };
-          }
-          try {
-            let all = await dealsApi.listDeals();
-            const status = args.status === "archived" ? "archived" : "active";
-            if (status !== "active" || args.status === "active") {
-              all = all.filter(d => d.status === status);
-            }
-            if (args.type && ["sell", "buy", "rent", "other"].includes(args.type)) {
-              all = all.filter(d => d.type === args.type);
-            }
-            if (args.query) {
-              all = dealsApi.searchDeals(all, String(args.query));
-            }
-            if (all.length === 0) {
-              return { success: true, message: "No deals match that filter." };
-            }
-            const summaries = all.slice(0, 20).map(d => {
-              const stages = dealsApi.DEAL_STAGES[d.type];
-              const stage = stages[d.stageIndex] || stages[0];
-              const progress = dealsApi.progressForStage(d.type, d.stageIndex);
-              const commission = d.commission ? ` · commission $${d.commission}` : "";
-              const target = d.targetCloseDate ? ` · target close ${d.targetCloseDate}` : "";
-              const contact = d.contactName ? ` (${d.contactName})` : "";
-              return `[${d.type.toUpperCase()}] ${d.address}${contact}\n  Stage: ${stage.emoji} ${stage.key.replace(/^dealStage/, "")} (${progress}%)${commission}${target}${d.status === "archived" ? " · ARCHIVED" : ""}`;
-            }).join("\n---\n");
-            return { success: true, message: `Found ${all.length} deal${all.length > 1 ? "s" : ""}:\n${summaries}` };
-          } catch (e: any) {
-            return { success: false, message: e.message || "Failed to list deals" };
-          }
-        }
-        case "advance_deal_stage": {
-          if (!authService.USE_AUTH_BACKEND_FLAG) {
-            return { success: false, message: "Deals require the Worker backend." };
-          }
-          try {
-            const q = String(args.address || "").toLowerCase().trim();
-            if (!q) return { success: false, message: "Address required." };
-            const all = await dealsApi.listDeals();
-            const matches = all.filter(d => d.status === "active" && d.address.toLowerCase().includes(q));
-            if (matches.length === 0) return { success: false, message: `No active deal matches "${args.address}"` };
-            if (matches.length > 1) {
-              const names = matches.map(d => d.address).join(", ");
-              return { success: false, message: `Multiple deals match: ${names}. Please be more specific.` };
-            }
-            const deal = matches[0];
-            const stages = dealsApi.DEAL_STAGES[deal.type];
-            if (deal.stageIndex >= stages.length - 1) {
-              return { success: true, message: `Deal "${deal.address}" is already at its final stage (${stages[stages.length - 1].key}).` };
-            }
-            const newIndex = deal.stageIndex + 1;
-            const updated = await dealsApi.updateDeal(deal.id, { stageIndex: newIndex });
-            const newStage = stages[newIndex];
-            return { success: true, message: `Advanced "${deal.address}" to ${newStage.emoji} ${newStage.key.replace(/^dealStage/, "")} (${dealsApi.progressForStage(deal.type, newIndex)}%).` };
-          } catch (e: any) {
-            return { success: false, message: e.message || "Failed to advance deal" };
-          }
-        }
         // ── Notes ──
         case "search_notes": {
           if (!authService.USE_AUTH_BACKEND_FLAG) {
@@ -1128,7 +1065,6 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
     { id: "mail", icon: Mail, label: t.mail },
     { id: "calendar", icon: CalendarIcon, label: t.calendar },
     { id: "tasks", icon: CheckSquare, label: t.tasks },
-    { id: "deals", icon: Briefcase, label: t.deals },
     { id: "notes", icon: NotebookPen, label: t.notes },
     { id: "ai", icon: Sparkles, label: t.aiChat },
   ];
@@ -1356,9 +1292,6 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
               onClearCompleted={handleClearCompleted}
               onRefresh={() => fetchData(searchQuery)}
             />
-          )}
-          {activeTab === "deals" && (
-            <DealsView lang={lang} />
           )}
           {activeTab === "notes" && (
             <NotesView
