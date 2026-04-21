@@ -15,7 +15,7 @@ id = "e115c8728fc545dea8c791c5a2f08c18"
 [vars]
 FRONTEND_ORIGIN = "https://soloceo.github.io"
 GOOGLE_CLIENT_ID = "690892597411-k6rpnlurgicngbthcf2g452rng8f4o0j.apps.googleusercontent.com"
-OAUTH_SCOPES = "openid email profile https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/tasks"
+OAUTH_SCOPES = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.compose https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/tasks https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email"
 
 # Secrets — set via:
 #   wrangler secret put GOOGLE_CLIENT_SECRET

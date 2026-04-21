@@ -207,24 +207,15 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
 
   // ── Handle Worker OAuth callback + sync backend accounts ──
   // When the Cloudflare Worker redirects back after Google consent, the
-  // URL has ?auth=success&email=... — consume it, sync accounts from the
-  // backend, and strip the query params. Runs once on mount.
-  const [backendReady, setBackendReady] = useState(!authService.USE_AUTH_BACKEND_FLAG);
-  useEffect(() => {
-    if (isDemo || !authService.USE_AUTH_BACKEND_FLAG) return;
-    (async () => {
-      await authService.consumeBackendAuthCallback();
-      await authService.syncBackendAccounts();
-      setBackendReady(true);
-    })();
-  }, [isDemo]);
+  // (Backend account sync is owned by App.tsx — by the time AppShell
+  // mounts, accounts are already in localStorage.)
 
   // ── Load Profile ──
   useEffect(() => {
     if (isDemo) {
       setProfile({ name: DEMO_ACCOUNTS[0].name, email: DEMO_ACCOUNTS[0].email, accounts: DEMO_ACCOUNTS });
       setSendFromAccount(DEMO_ACCOUNTS[0].email);
-    } else if (backendReady) {
+    } else {
       const accounts = authService.getAccounts();
       if (accounts.length > 0) {
         const primary = accounts[0];
@@ -235,7 +226,7 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
         setSendFromAccount(primary.email);
       }
     }
-  }, [isDemo, backendReady]);
+  }, [isDemo]);
 
   // ── Fetch Data ──
   const fetchData = useCallback(async (query?: string) => {
@@ -333,10 +324,7 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
     }
   }, [isDemo, accountFilter, t]);
 
-  useEffect(() => {
-    if (!isDemo && !backendReady) return; // wait for backend account sync in backend mode
-    fetchData();
-  }, [fetchData, isDemo, backendReady]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   // ── Proactive silent token refresh ──
   // Google browser-flow access tokens last 1 hour with no refresh_token.
@@ -346,6 +334,13 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
   // next 10 minutes are refreshed.
   useEffect(() => {
     if (isDemo) return;
+    // In backend mode we don't need proactive refresh — `withFreshToken`
+    // hits the Worker on demand, the Worker serves from its cache if the
+    // token is fresh, and mints a new one if not. Ticking every 5 min
+    // would cause an API storm after hard reload (localStorage
+    // token_expiry is 0 → every account looks expiring soon).
+    if (authService.USE_AUTH_BACKEND_FLAG) return;
+
     const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 min
     const REFRESH_AHEAD_MS = 10 * 60 * 1000; // refresh tokens expiring within 10 min
 
@@ -355,14 +350,9 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
         .filter(a => a.token_expiry - Date.now() < REFRESH_AHEAD_MS)
         .map(a => a.email);
       if (expiringSoon.length === 0) return;
-      if (authService.USE_AUTH_BACKEND_FLAG) {
-        await authService.refreshTokensViaBackend(expiringSoon);
-      } else {
-        await authService.refreshTokensSilentBatch(expiringSoon);
-      }
+      await authService.refreshTokensSilentBatch(expiringSoon);
     };
 
-    // Run once on mount, then on interval
     tick();
     const id = setInterval(tick, REFRESH_INTERVAL_MS);
     return () => clearInterval(id);
@@ -703,7 +693,12 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
   const handleAddAccount = useCallback(async () => {
     if (isDemo) { toast.info(t.demoConnectGoogle); return; }
     try {
-      const newAccount = await authService.addAccount();
+      await authService.addAccount();
+      // In backend mode, addAccount triggers a full-page redirect, so
+      // nothing below this line runs — the state gets repopulated by
+      // App.tsx's sync when the Worker redirects back.
+      if (authService.USE_AUTH_BACKEND_FLAG) return;
+
       const accounts = authService.getAccounts();
       setProfile(prev => ({
         ...prev!,

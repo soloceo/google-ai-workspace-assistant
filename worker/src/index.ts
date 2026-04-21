@@ -179,6 +179,7 @@ async function exchangeCodeForTokens(env: Env, code: string, redirectUri: string
 async function refreshAccessToken(env: Env, refreshToken: string): Promise<{
   access_token: string;
   expires_in: number;
+  refresh_token?: string;
 }> {
   const body = new URLSearchParams({
     refresh_token: refreshToken,
@@ -210,11 +211,29 @@ async function revokeToken(token: string): Promise<void> {
   });
 }
 
+/**
+ * Validate return_to is same-origin as FRONTEND_ORIGIN. Prevents open
+ * redirects where an attacker could trick the Worker into sending a
+ * real Google login success to their own URL (leaking the user's email).
+ */
+function isAllowedReturnTo(url: string, env: Env): boolean {
+  try {
+    const u = new URL(url);
+    const allowed = new URL(env.FRONTEND_ORIGIN);
+    return u.origin === allowed.origin;
+  } catch {
+    return false;
+  }
+}
+
 // ─── Route handlers ─────────────────────────────────────────
 
 async function handleStart(req: Request, env: Env): Promise<Response> {
   const { searchParams } = new URL(req.url);
-  const returnTo = searchParams.get('return_to') || env.FRONTEND_ORIGIN;
+  const requestedReturnTo = searchParams.get('return_to') || env.FRONTEND_ORIGIN;
+  const returnTo = isAllowedReturnTo(requestedReturnTo, env)
+    ? requestedReturnTo
+    : env.FRONTEND_ORIGIN;
 
   let sid = getSessionId(req);
   const newSession = !sid;
@@ -257,8 +276,19 @@ async function handleCallback(req: Request, env: Env): Promise<Response> {
   const sepIdx = state.indexOf('~');
   const sid = sepIdx > 0 ? state.slice(0, sepIdx) : '';
   const returnToEnc = sepIdx > 0 ? state.slice(sepIdx + 1) : '';
-  const returnTo = returnToEnc ? decodeURIComponent(returnToEnc) : env.FRONTEND_ORIGIN;
+  const decodedReturnTo = returnToEnc ? decodeURIComponent(returnToEnc) : env.FRONTEND_ORIGIN;
+  // Re-validate return_to here too: even though handleStart validates
+  // on the way in, an attacker could craft a state string directly.
+  const returnTo = isAllowedReturnTo(decodedReturnTo, env) ? decodedReturnTo : env.FRONTEND_ORIGIN;
   if (!sid) return new Response('Invalid state', { status: 400 });
+
+  // Bind state to session: the sid embedded in state MUST match the
+  // cookie in this browser. Prevents session-fixation / CSRF where an
+  // attacker gets their /auth/start URL consumed by the victim.
+  const cookieSid = getSessionId(req);
+  if (cookieSid !== sid) {
+    return new Response('Session mismatch — please restart the login flow', { status: 400 });
+  }
 
   const redirectUri = new URL('/auth/callback', req.url).toString();
   const tokens = await exchangeCodeForTokens(env, code, redirectUri);
@@ -315,15 +345,23 @@ async function handleToken(req: Request, env: Env): Promise<Response> {
   const account: StoredAccount = JSON.parse(decrypted);
 
   try {
-    const { access_token, expires_in } = await refreshAccessToken(env, account.refresh_token);
+    const tokenRes = await refreshAccessToken(env, account.refresh_token);
+    // Google may rotate the refresh_token (esp. after scope changes or
+    // security events). If a new one comes back, persist it — otherwise
+    // the next refresh will silently fail with invalid_grant.
+    if (tokenRes.refresh_token && tokenRes.refresh_token !== account.refresh_token) {
+      await storeAccount(env, sid, { ...account, refresh_token: tokenRes.refresh_token });
+    }
     return json(env, {
-      access_token,
-      expires_at: Date.now() + expires_in * 1000,
+      access_token: tokenRes.access_token,
+      expires_at: Date.now() + tokenRes.expires_in * 1000,
     });
   } catch (e: any) {
     // Refresh token likely revoked. Remove the account so the user can reconnect.
     await deleteAccount(env, sid, email);
-    return json(env, { error: 'Refresh failed — please reconnect', detail: String(e) }, { status: 401 });
+    // Don't leak raw Google error text — log server-side instead.
+    console.error(`[auth/token] refresh failed for ${email}:`, e);
+    return json(env, { error: 'Refresh failed — please reconnect' }, { status: 401 });
   }
 }
 
