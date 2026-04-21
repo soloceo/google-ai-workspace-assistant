@@ -35,6 +35,7 @@ interface DashboardViewProps {
   calendarEvents: any[];
   taskItems: Task[];
   taskLists: (TaskList & { accountEmail: string; accountColor: string })[];
+  /** Undefined → still loading (show skeleton). Empty array → user has no notes. */
   notes?: import("../../types").Note[];
   loading: boolean;
   lang: Language;
@@ -67,8 +68,12 @@ function extractSenderName(from: string): string {
 }
 
 export default function DashboardView({
-  emails, calendarEvents, taskItems, taskLists, notes = [], loading, lang, onNavigate, onOpenJournal,
+  emails, calendarEvents, taskItems, taskLists, notes, loading, lang, onNavigate, onOpenJournal,
 }: DashboardViewProps) {
+  // `notes === undefined` means "still loading"; null out stats and show a
+  // skeleton in that case so we don't flash fake zeros on first render.
+  const notesKnown = notes !== undefined;
+  const notesSafe = notes ?? [];
   const t = translations[lang];
   const now = new Date();
   const locale = lang === "zh" ? "zh-CN" : "en-US";
@@ -97,12 +102,16 @@ export default function DashboardView({
   const unreadEmails = emails.filter(e => e.labelIds?.includes("UNREAD"));
 
   // Journal stats — notes count + this-month ledger net
-  const plainNotes = notes.filter(n => n.category !== "accounting");
-  const ledgerNotes = notes.filter(n => n.category === "accounting" && typeof n.amount === "number");
+  const plainNotes = notesSafe.filter(n => n.category !== "accounting");
+  const ledgerNotes = notesSafe.filter(n => n.category === "accounting" && typeof n.amount === "number");
   const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  // Local-timezone YYYY-MM-DD so entries made late at night don't spill
+  // into the previous/next month for users west/east of UTC.
+  const pad2 = (n: number) => String(n).padStart(2, "0");
+  const localYMD = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
   let monthIncome = 0, monthExpense = 0;
   for (const n of ledgerNotes) {
-    const d = n.txDate || new Date(n.updated_at).toISOString().slice(0, 10);
+    const d = n.txDate || localYMD(new Date(n.updated_at));
     if (!d.startsWith(ym)) continue;
     const { total } = computeNoteTaxBreakdown(n);
     if (n.txType === "income") monthIncome += total;
@@ -339,6 +348,12 @@ export default function DashboardView({
               </div>
             </div>
 
+            {!notesKnown ? (
+              <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                <div className="h-20 bg-[var(--bg-alt)] rounded-[4px] animate-pulse" />
+                <div className="h-20 bg-[var(--bg-alt)] rounded-[4px] animate-pulse" />
+              </div>
+            ) : (
             <div className="grid grid-cols-2 gap-2 sm:gap-3">
               {/* Notes mini-card */}
               <button
@@ -391,6 +406,7 @@ export default function DashboardView({
                 </p>
               </button>
             </div>
+            )}
           </section>
         )}
       </div>

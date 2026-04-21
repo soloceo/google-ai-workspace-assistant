@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { Plus, Search, Loader2, NotebookPen, KeyRound, Download, Upload, Database, Check, Receipt } from "lucide-react";
+import { Plus, Search, Loader2, NotebookPen, KeyRound, Download, Upload, Database, Check, Receipt, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import { translations, type Language } from "../../translations";
 import type { Note, NoteCategory } from "../../types";
@@ -20,18 +20,25 @@ interface NotesViewProps {
   onOpenSettings?: () => void;
 }
 
+// Format a Date as YYYY-MM-DD in the user's LOCAL timezone. Using
+// toISOString() would shift dates across midnight for users west of UTC
+// (a 10pm Apr 30 entry becomes "2026-05-01" in UTC).
+function localDate(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 function monthRange(year: number, month0: number) {
-  const fmt = (d: Date) => d.toISOString().slice(0, 10);
-  return { from: fmt(new Date(year, month0, 1)), to: fmt(new Date(year, month0 + 1, 0)) };
+  return { from: localDate(new Date(year, month0, 1)), to: localDate(new Date(year, month0 + 1, 0)) };
 }
 
 function yearRange(year: number) {
   return { from: `${year}-01-01`, to: `${year}-12-31` };
 }
 
-/** Date an accounting note belongs to — txDate if set, else the day of updated_at. */
+/** Date an accounting note belongs to — txDate if set, else the local day of updated_at. */
 function ledgerDateOf(n: Note): string {
-  return n.txDate || new Date(n.updated_at).toISOString().slice(0, 10);
+  return n.txDate || localDate(new Date(n.updated_at));
 }
 
 export default function NotesView({ lang, geminiApiKey, initialMode = "notes", onOpenSettings }: NotesViewProps) {
@@ -304,9 +311,10 @@ export default function NotesView({ lang, geminiApiKey, initialMode = "notes", o
               <button
                 onClick={handleExportLedgerCsv}
                 title={t.ledgerExportCsv}
-                className="size-10 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] bg-[var(--bg-alt)] hover:bg-[var(--bg-active)] rounded-[4px] t-transition"
+                className="flex items-center gap-1.5 h-10 px-3 text-[13px] text-[var(--text-body)] bg-[var(--bg-alt)] hover:bg-[var(--bg-active)] rounded-[4px] t-transition"
               >
-                <Download className="size-4" />
+                <FileSpreadsheet className="size-4" />
+                CSV
               </button>
             ) : (
               <>
@@ -498,8 +506,9 @@ export default function NotesView({ lang, geminiApiKey, initialMode = "notes", o
         </button>
       )}
 
-      {/* Gemini key hint (notes mode only; ledger doesn't need OCR as much) */}
-      {!geminiApiKey && !showEditor && notes.length === 0 && onOpenSettings && (
+      {/* Gemini key hint — only in Notes mode, since Ledger's use of OCR
+          is a separate story (receipt auto-fill isn't built yet). */}
+      {mode === "notes" && !geminiApiKey && !showEditor && notes.length === 0 && onOpenSettings && (
         <button
           onClick={onOpenSettings}
           className="absolute bottom-4 left-4 right-20 sm:right-auto sm:max-w-sm flex items-center gap-2 p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-[4px] text-left hover:bg-amber-500/15 t-transition"

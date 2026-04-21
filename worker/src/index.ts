@@ -454,6 +454,17 @@ function sanitizeNote(n: any, existing?: StoredNote): StoredNote {
   // polluting ledger summaries if a user re-categorizes a note.
   const isAccounting = category === 'accounting';
 
+  // Partial-update helper: if the key was explicitly sent by the client
+  // (including as undefined/null to clear it), respect the sent value.
+  // Otherwise fall back to the existing stored value. Without this, a
+  // client could never clear an optional field via PATCH because
+  // `n?.field ?? existing?.field` always reverts to existing when the
+  // client sent undefined.
+  const merged = <T>(key: string, sanitize: (v: any) => T | undefined, existingVal: T | undefined): T | undefined => {
+    if (n && typeof n === 'object' && key in n) return sanitize(n[key]);
+    return existingVal;
+  };
+
   return {
     id: existing?.id || newNoteId(),
     created_at: existing?.created_at || now,
@@ -464,12 +475,14 @@ function sanitizeNote(n: any, existing?: StoredNote): StoredNote {
     photos: Array.isArray(n?.photos) ? n.photos.filter((p: any) => typeof p === 'string').slice(0, 20) : existing?.photos || [],
     photoTexts: Array.isArray(n?.photoTexts) ? n.photoTexts.filter((t: any) => typeof t === 'string').slice(0, 20) : existing?.photoTexts || [],
     // Accounting fields — cleared if category isn't 'accounting'.
-    amount:  isAccounting ? cleanNum(n?.amount ?? existing?.amount) : undefined,
-    txType:  isAccounting ? cleanEnum(n?.txType ?? existing?.txType, NOTE_TX_TYPES) : undefined,
-    taxMode: isAccounting ? cleanEnum(n?.taxMode ?? existing?.taxMode, NOTE_TAX_MODES) : undefined,
-    taxRate: isAccounting ? cleanNum(n?.taxRate ?? existing?.taxRate) : undefined,
-    payment: isAccounting ? cleanEnum(n?.payment ?? existing?.payment, NOTE_PAYMENTS) : undefined,
-    txDate:  isAccounting ? cleanDate(n?.txDate ?? existing?.txDate) : undefined,
+    // Within accounting, each field respects explicit clears (PATCH
+    // with undefined means "remove this field", not "keep existing").
+    amount:  isAccounting ? merged('amount',  cleanNum,                                      existing?.amount)  : undefined,
+    txType:  isAccounting ? merged('txType',  (v) => cleanEnum(v, NOTE_TX_TYPES),            existing?.txType)  : undefined,
+    taxMode: isAccounting ? merged('taxMode', (v) => cleanEnum(v, NOTE_TAX_MODES),           existing?.taxMode) : undefined,
+    taxRate: isAccounting ? merged('taxRate', cleanNum,                                      existing?.taxRate) : undefined,
+    payment: isAccounting ? merged('payment', (v) => cleanEnum(v, NOTE_PAYMENTS),            existing?.payment) : undefined,
+    txDate:  isAccounting ? merged('txDate',  cleanDate,                                     existing?.txDate)  : undefined,
   };
 }
 

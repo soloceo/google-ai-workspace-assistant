@@ -179,9 +179,9 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
   const [pageTokens, setPageTokens] = useState<Record<string, string | null>>({});
   const [hasMore, setHasMore] = useState(false);
 
-  // Dashboard preview of notes/ledger. Loaded after auth resolves and
-  // after returning from the Journal tab.
-  const [dashboardNotes, setDashboardNotes] = useState<import("../types").Note[]>([]);
+  // Dashboard preview of notes/ledger. `undefined` means "not yet loaded"
+  // — the Dashboard shows a skeleton in that state instead of fake zeros.
+  const [dashboardNotes, setDashboardNotes] = useState<import("../types").Note[] | undefined>(undefined);
   // Which mode Journal should open in — set by Dashboard mini-cards.
   const [journalInitialMode, setJournalInitialMode] = useState<"notes" | "ledger">("notes");
 
@@ -1110,7 +1110,7 @@ export default function AppShell({ isDemo, lang, onLangChange, onLogout }: AppSh
           try {
             const result = await notesApi.listNotes();
             let all = result.notes;
-            if (args.category && ["product", "idea", "task", "other"].includes(args.category)) {
+            if (args.category && ["product", "idea", "task", "accounting", "other"].includes(args.category)) {
               all = all.filter(n => n.category === args.category);
             }
             const matches = notesApi.searchNotes(all, args.query || "");

@@ -4,7 +4,7 @@
  * notes are tied to the browser session, not any Google account.
  */
 import { AUTH_BACKEND_URL, USE_AUTH_BACKEND } from '../config';
-import type { Note, NoteCategory } from '../types';
+import type { Note, NoteCategory, NoteTxType, NoteTaxMode, NotePayment } from '../types';
 
 export class NotesUnavailableError extends Error {
   constructor() {
@@ -50,13 +50,23 @@ export async function listNotes(): Promise<NotesListResult> {
   };
 }
 
-export async function createNote(input: {
+export interface NoteWriteInput {
   title?: string;
   text?: string;
   category?: NoteCategory;
   photos?: string[];
   photoTexts?: string[];
-}): Promise<Note> {
+  // Accounting fields — optional, sent only when category is 'accounting'.
+  // TS-level declaration so future callers don't silently drop them.
+  amount?: number;
+  txType?: NoteTxType;
+  taxMode?: NoteTaxMode;
+  taxRate?: number;
+  payment?: NotePayment;
+  txDate?: string;
+}
+
+export async function createNote(input: NoteWriteInput): Promise<Note> {
   const res = await request<{ note: Note }>('/notes', {
     method: 'POST',
     body: JSON.stringify(input),
@@ -64,13 +74,7 @@ export async function createNote(input: {
   return res.note;
 }
 
-export async function updateNote(id: string, patch: {
-  title?: string;
-  text?: string;
-  category?: NoteCategory;
-  photos?: string[];
-  photoTexts?: string[];
-}): Promise<Note> {
+export async function updateNote(id: string, patch: NoteWriteInput): Promise<Note> {
   const res = await request<{ note: Note }>(`/notes/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(patch),
@@ -163,12 +167,21 @@ export async function importNotesFromFile(file: File): Promise<number> {
   let imported = 0;
   for (const n of notes) {
     try {
+      // Forward every field including accounting ones, so backups with
+      // amount/tax/payment restore losslessly. The server re-validates
+      // and assigns a fresh id + owner.
       await createNote({
         title: n.title || '',
         text: n.text || '',
         category: n.category || 'other',
         photos: Array.isArray(n.photos) ? n.photos : [],
         photoTexts: Array.isArray(n.photoTexts) ? n.photoTexts : [],
+        amount: typeof n.amount === 'number' ? n.amount : undefined,
+        txType: n.txType,
+        taxMode: n.taxMode,
+        taxRate: typeof n.taxRate === 'number' ? n.taxRate : undefined,
+        payment: n.payment,
+        txDate: typeof n.txDate === 'string' ? n.txDate : undefined,
       });
       imported += 1;
     } catch (e) {
