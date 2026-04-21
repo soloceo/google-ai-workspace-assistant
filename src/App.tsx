@@ -2,7 +2,10 @@ import { useState, useEffect, useCallback } from "react";
 import { Toaster } from "sonner";
 import { RefreshCw, X } from "lucide-react";
 import { translations, type Language } from "./translations";
-import { loadGIS, login, isAnyAccountValid } from "./services/auth";
+import {
+  loadGIS, login, isAnyAccountValid,
+  USE_AUTH_BACKEND_FLAG, consumeBackendAuthCallback, syncBackendAccounts,
+} from "./services/auth";
 import { GOOGLE_CLIENT_ID } from "./config";
 import LoginScreen from "./components/LoginScreen";
 import AppShell from "./components/AppShell";
@@ -39,7 +42,29 @@ export default function App() {
   const updateAvailable = useUpdateCheck();
 
   useEffect(() => {
-    setAuthenticated(isAnyAccountValid());
+    (async () => {
+      // Backend mode: consume the `?auth=success` redirect from the Worker
+      // and sync the connected accounts before deciding whether to show
+      // the login screen. Without this, App sees an empty localStorage,
+      // decides the user is logged out, and mounts LoginScreen — which
+      // never lets AppShell run the sync code.
+      if (USE_AUTH_BACKEND_FLAG) {
+        try {
+          await consumeBackendAuthCallback();
+          const accounts = await syncBackendAccounts();
+          // In backend mode, "authenticated" means the Worker has any
+          // refresh_token for us — the access_token will be minted on
+          // demand by withFreshToken / getBackendToken.
+          if (accounts.length > 0) {
+            setAuthenticated(true);
+            return;
+          }
+        } catch (e) {
+          console.warn("Backend sync on startup failed:", e);
+        }
+      }
+      setAuthenticated(isAnyAccountValid());
+    })();
     loadGIS().then(() => setGisReady(true)).catch(() => setGisReady(false));
   }, []);
 
